@@ -63,6 +63,20 @@ Hoje os sensores são **simulados** em `js/sensors.js`. Para ligar ao hardware r
 2. Enviar comandos de bomba de volta ao ESP32 em `IrrigationController`, no lugar de só mudar `pumpOn`.
 3. Manter a mesma interface (`read`, `addWater`, `update`), e a sala continua funcionando.
 
+## Firmware (Wokwi)
+
+O firmware do ESP32 que alimenta a estufa está em `firmware/` e é simulado no
+[Wokwi](https://wokwi.com/projects/481428343946592257) (projeto "projeto_pra_vr").
+
+- Placa: ESP32 DevKit C v4
+- Sensores: solo, LDR, DHT22, HC-SR04
+- Atuador: relé (bomba d'água) com histerese
+- Comunicação: MQTT no broker HiveMQ, tópicos `estufa/vr/*`
+
+A sala VR consome a telemetria publicada pelo firmware e envia comandos de
+bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
+`firmware/` no VS Code com a extensão Wokwi.
+
 ## Tecnologias
 
 - [three.js](https://threejs.org/) 0.170.0 (carregado pelo CDN jsDelivr)
