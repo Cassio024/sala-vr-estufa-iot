@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SoilMoistureSensor, ProximitySensor, IrrigationController } from './sensors.js';
 
 // ---------------------------------------------------------------------------
@@ -16,14 +17,15 @@ document.getElementById('app').appendChild(VRButton.createButton(renderer));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0d1117);
 
-// "Corpo" do usuário dentro da sala (na VR o headset assume a posição da cabeça).
-const dolly = new THREE.Group();
-dolly.position.set(0, 0, 1.2);
-scene.add(dolly);
-
+// No computador a câmera é controlada pelo mouse; na VR o headset assume a posição.
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 50);
-camera.position.set(0, 1.6, 0);
-dolly.add(camera);
+camera.position.set(0.6, 1.5, 0.8);
+scene.add(camera);
+
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 1.0, -1);
+orbit.maxDistance = 3;
+orbit.update();
 
 // ---------------------------------------------------------------------------
 // Luz e sala
@@ -263,7 +265,7 @@ function drawPanel(moisture, pumpOn, mode, near, log) {
 
   pctx.font = '28px sans-serif';
   pctx.fillStyle = '#6b7280';
-  pctx.fillText('Gatilho perto do sensor azul = rega manual · gatilho no botão = modo', 40, 610);
+  pctx.fillText('Clique/gatilho na esfera azul = rega manual · no botão cinza = modo', 40, 610);
 
   panelTexture.needsUpdate = true;
 }
@@ -296,6 +298,26 @@ function onSelect(controller) {
     irrigation.requestManualWater();
   }
 }
+
+// Mouse (sem headset): clicar no botão cinza troca o modo; clicar na esfera azul rega.
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let downX = 0;
+let downY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  // Ignora arrastos (girar a câmera).
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;
+  mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObjects([modeButton, modeLed, proxCore, proxHalo], false)[0];
+  if (!hit) return;
+  if (hit.object === modeButton || hit.object === modeLed) irrigation.toggleMode();
+  else irrigation.requestManualWater();
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') irrigation.requestManualWater();

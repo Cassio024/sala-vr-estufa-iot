@@ -19,9 +19,11 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 - Aponte o controle para o **botão de modo** e aperte o gatilho para trocar entre automático e manual.
 - No modo manual, aponte para a **esfera azul** e aperte o gatilho para regar.
 
-**No computador (teste sem headset):**
-- `M` troca o modo.
-- `Espaço` faz a rega manual.
+**No computador (sem headset):**
+- Arraste o mouse para girar a câmera e use a roda para aproximar.
+- Clique no **botão cinza** para trocar o modo.
+- Clique na **esfera azul** para regar (rega manual).
+- Atalhos: `M` troca o modo, `Espaço` rega.
 
 ## Como rodar
 
