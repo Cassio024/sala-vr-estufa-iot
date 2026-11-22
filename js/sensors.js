@@ -67,9 +67,15 @@ export class IrrigationController {
   }
 
   // Retorna quanta umidade (em %) a bomba adiciona neste frame.
+  // moisture = null significa "sensor fora do solo": o modo automático pausa.
   update(dt, moisture) {
     if (this.mode === 'auto') {
-      if (!this.pumpOn && moisture < this.lowThreshold) {
+      if (moisture === null || moisture === undefined) {
+        if (this.pumpOn) {
+          this.pumpOn = false;
+          this.event('Sensor fora do solo: bomba desligada');
+        }
+      } else if (!this.pumpOn && moisture < this.lowThreshold) {
         this.pumpOn = true;
         this.event(`Solo com ${moisture.toFixed(0)}%: bomba ligada`);
       } else if (this.pumpOn && moisture >= this.targetLevel) {
