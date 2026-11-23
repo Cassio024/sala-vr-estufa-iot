@@ -1,14 +1,17 @@
-// Estufa, bancadas, luminária e mesa (posições usadas pelo resto da cena).
+// Estufa, bancadas, luminária, mesa e cenário externo (árvores e posições usadas pelo resto da cena).
 import * as THREE from 'three';
-import { pbrMaterial, buildGreenhouse, buildBenches, buildLamp } from '../environment.js';
+import { pbrMaterial, buildGreenhouse, buildBenches, buildLamp, buildOutdoorScenery } from '../environment.js';
 
 export const GREENHOUSE_SIZE = 8;
 export const TABLE_Y = 0.78; // altura da superfície da mesa
 export const TABLE_Z = -1;
 
-export function buildRoom(scene, { shadowMapSize }) {
+// Devolve o que o resto da cena precisa: a porta (para a animação), as posições
+// dos vasos das bancadas e as árvores (para sombras de contato e vento).
+// No modo leve (headset standalone) o cenário externo fica de fora.
+export function buildRoom(scene, { shadowMapSize, low = false }) {
   const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3, shadowMapSize });
-  buildBenches(scene, GREENHOUSE_SIZE);
+  const benchSpots = buildBenches(scene, GREENHOUSE_SIZE);
   buildLamp(scene, 0, TABLE_Z, greenhouse.roofY(TABLE_Z) - 0.05);
 
   const woodMat = pbrMaterial('madeira', { fallback: 'wood', roughness: 0.7 });
@@ -24,5 +27,7 @@ export function buildRoom(scene, { shadowMapSize }) {
     leg.castShadow = true;
     scene.add(leg);
   }
-  return greenhouse;
+
+  const outdoor = low ? null : buildOutdoorScenery(scene);
+  return { greenhouse, benchSpots, outdoor };
 }

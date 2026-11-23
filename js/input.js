@@ -2,7 +2,7 @@
 // Os controles VR ficam em interaction.js.
 import * as THREE from 'three';
 
-export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets, onToggleMode, onWater }) {
+export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets, onToggleMode, onWater, onPick = null }) {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let downX = 0;
@@ -18,6 +18,8 @@ export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets,
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return; // foi um arrasto (girar a câmera)
     mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(mouse, camera);
+    // Primeiro: placas explicativas, porta e chão (caminho de entrada). Se tratou o clique, para aqui.
+    if (onPick && onPick(raycaster)) return;
     const hit = raycaster.intersectObjects([...modeTargets, ...waterTargets], false)[0];
     if (!hit) return;
     if (modeTargets.includes(hit.object)) onToggleMode();
