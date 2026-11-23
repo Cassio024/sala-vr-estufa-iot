@@ -17,6 +17,7 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 | Sensor de proximidade (esfera azul) | Dispara quando a mão/controle entra na área azul. Com o gatilho, faz uma rega manual. |
 | Botão de modo (caixa cinza) | Alterna entre **automático** e **manual**. |
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
+| Irrigação das bancadas | Em cada bancada: motor com **caixa d'água** em cima, placa **ESP32 + relés** e um cano até cada vaso. Em cada curva, uma **válvula solenoide** com luz **vermelha** (fechada) e **verde** (regando) e um **bipe** ao abrir. Cada vaso tem seu sensor: abre abaixo de 35% e fecha em 70%. Uma placa perto da bancada esquerda explica válvula → relé → placa. |
 
 ## Como jogar
 
@@ -144,6 +145,8 @@ js/ui/panel.js        -> painel de status
 js/input.js           -> mouse e teclado (PC)
 js/fps.js             -> modo FPS: W A S D, mouse preso, mira, pegar/soltar e regar
 js/collision.js       -> colisão com paredes, porta e móveis (FPS e joystick da VR)
+js/valves.js          -> lógica das válvulas solenoides das bancadas (um sensor e um relé por vaso)
+js/scene/bench-irrigation.js -> motores, caixas d'água, canos, válvulas com LEDs, gotas, bipe e placa explicativa
 js/ui/options.js      -> opção "andar ao clicar" (PC)
 js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
 js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa

@@ -10,6 +10,7 @@
 //   ui/panel.js       -> painel de status
 //   input.js          -> mouse e teclado (PC)  ·  interaction.js -> controles VR
 //   fps.js            -> modo FPS no PC (W A S D + mouse, tecla F)
+//   scene/bench-irrigation.js -> motores, caixas d'água, canos e válvulas solenoides das bancadas
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -32,6 +33,7 @@ import { createPost } from './postfx.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
+import { createBenchIrrigation } from './scene/bench-irrigation.js';
 import { SOIL_Y } from './scene/plant.js';
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,9 @@ rig.add(camera);
 
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 1.0, -1);
+// ?alvo=x,y,z: para onde a câmera olha (junto com ?camera, para prints).
+const alvo = (new URLSearchParams(window.location.search).get('alvo') || '').split(',').map(Number);
+if (alvo.length === 3 && alvo.every(Number.isFinite)) orbit.target.fromArray(alvo);
 orbit.maxDistance = 12;
 orbit.update();
 
@@ -175,6 +180,9 @@ const pumpHum = sound.create(dev.pump, sound.buffers.hum, { loop: true, volume: 
 const waterSfx = sound.create(plant.pot, sound.buffers.water, { loop: true, volume: 0.8 });
 const alertSfx = sound.create(dev.probe, sound.buffers.alert, { volume: 0.7, refDistance: 0.6 });
 const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8 });
+
+// Irrigação das bancadas laterais: uma válvula solenoide (com relé) por vaso.
+const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, low: quality.low });
 
 // O navegador só libera áudio depois de um gesto (clique, tecla ou entrar na VR).
 ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => sound.unlock()));
@@ -313,6 +321,7 @@ function render() {
   // 0) Cenário vivo: caminhada, porta, vento, nuvens e poeira.
   intro.update(dt);
   fps.update(dt);
+  benchIrrigation.update(dt);
   if (room.outdoor) room.outdoor.update(time);
   if (clouds) clouds.update(dt);
   if (dust) dust.update(time);

@@ -28,6 +28,11 @@ export class SoundManager {
       }),
       // clique do botão
       click: this._make(0.08, (t) => Math.exp(-t * 60) * Math.sin(2 * Math.PI * 700 * t) * 0.6),
+      // bipe curto da válvula solenoide abrindo (irrigação das bancadas)
+      beep: this._make(0.16, (t) => {
+        const env = Math.min(1, t * 400) * Math.min(1, (0.16 - t) * 60);
+        return 0.4 * env * Math.sin(2 * Math.PI * 1500 * t);
+      }),
     };
   }
 
