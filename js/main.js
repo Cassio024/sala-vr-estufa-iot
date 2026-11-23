@@ -33,6 +33,7 @@ import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
 import { buildLake } from './lake.js';
+import { buildFlowerBeds, buildStonePath } from './mapa.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
@@ -168,6 +169,8 @@ buildContactShadows(scene, [
 ]);
 const clouds = quality.low ? null : buildClouds(scene);
 const lake = buildLake(scene);
+buildStonePath(scene); // caminho de pedras até o lago
+if (!quality.low) buildFlowerBeds(scene).catch((err) => console.error('[mapa] falha nos canteiros:', err));
 const dust = quality.low ? null : buildDust(scene);
 
 // Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
