@@ -18,6 +18,7 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 | Botão de modo (caixa cinza) | Alterna entre **automático** e **manual**. |
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
 | Painel das bancadas (perto da porta, à direita) | Escolha **Todas / Esquerda / Direita**, o modo **Automático / Manual**, **💧 Regar agora** (no manual) e **Liberar todos**. A grade mostra os 16 vasos (umidade e estado); **clique num vaso para bloquear ("não regar") ou liberar** a rega dele. Funciona com mouse, mira do modo FPS e raio do controle VR. |
+| Placa-mãe (fundo da estufa, na parede) | Caixa do ESP32 que recebe todos os fios: **preto** = sinal dos relés, **vermelho** = força das bombas (motores das bancadas e bomba da mesa), **amarelo** = sensores (umidade e proximidade). Os LEDs mostram energia, o programa rodando (pisca) e cada bomba ligada. O fio do sensor de umidade acompanha o sensor quando ele é pego. |
 | Vasos das bancadas | Podem ser **pegos e movidos** (PC: modo FPS · VR: gatilho lateral). Soltos, caem e pousam na bancada, na mesa ou no chão. A válvula só rega o vaso que está embaixo do bico dela: tirou o vaso do lugar, ela não rega mais ali. |
 | Vaso principal (mesa) | **Planta em análise**: preso à mesa com fitas zebradas e uma etiqueta — não pode ser pego. |
 | Irrigação das bancadas | Em cada bancada: motor com **caixa d'água** em cima, placa **ESP32 + relés** e um cano até cada vaso. Em cada curva, uma **válvula solenoide** com luz **vermelha** (fechada) e **verde** (regando) e um **bipe** ao abrir. Cada vaso tem seu sensor: abre abaixo de 35% e fecha em 70%. Uma placa perto da bancada esquerda explica válvula → relé → placa. |
@@ -160,6 +161,7 @@ js/valves.js          -> lógica das válvulas solenoides das bancadas (um senso
 js/scene/bench-irrigation.js -> motores, caixas d'água, canos, válvulas com LEDs, gotas, bipe e placa explicativa
 js/ui/control-panel.js -> painel das bancadas: seleção, modo, regar agora, bloquear vaso
 js/scene/analysis.js  -> fitas e etiqueta do vaso principal (planta em análise)
+js/scene/mainboard.js -> placa-mãe no fundo da estufa e os fios até relés, bombas e sensores
 js/ui/options.js      -> opção "andar ao clicar" (PC)
 js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
 js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa

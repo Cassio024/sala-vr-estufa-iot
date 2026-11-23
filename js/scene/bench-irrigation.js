@@ -152,6 +152,7 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
   const tankMat = new THREE.MeshStandardMaterial({ color: 0x1d5fbf, roughness: 0.55 });
   const lidMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.5 });
   const motors = [];
+  const wiring = []; // onde os fios da placa-mãe chegam: placa de relés e motor de cada bancada
 
   sides.forEach(({ s, pots }, sideIndex) => {
     const bx = pots[0].x;
@@ -201,6 +202,10 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     boardLabel.rotation.x = -Math.PI / 2;
     boardLabel.position.set(bx - s * 0.2, TOP_Y + 0.056, MOTOR_Z);
     scene.add(board, boardLabel);
+    wiring.push({
+      board: new THREE.Vector3(bx - s * 0.2, TOP_Y + 0.04, MOTOR_Z - 0.05),
+      motor: new THREE.Vector3(mx, TOP_Y + 0.08, MOTOR_Z - 0.11),
+    });
 
     // Cano: saída do motor -> borda de trás da bancada -> ao longo dos vasos.
     pipeGeos.push(pipe([
@@ -434,5 +439,5 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     }
   }
 
-  return { network, slots, update, setPotObjects, dropSurfaces };
+  return { network, slots, update, setPotObjects, dropSurfaces, wiring };
 }

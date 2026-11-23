@@ -39,6 +39,7 @@ import { createBenchIrrigation } from './scene/bench-irrigation.js';
 import { ControlPanel } from './ui/control-panel.js';
 import { buildAnalysisStraps } from './scene/analysis.js';
 import { SOIL_Y } from './scene/plant.js';
+import { createMainboard } from './scene/mainboard.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
@@ -207,6 +208,17 @@ const controlPanel = new ControlPanel(scene, benchIrrigation.network, benchIrrig
 });
 const panelClick = sound.create(controlPanel.group, sound.buffers.click, { volume: 0.8 });
 
+// Placa-mãe no fundo da estufa: recebe os fios dos relés, das bombas e dos sensores.
+const mainboard = createMainboard(scene, {
+  wallZ: -GREENHOUSE_SIZE / 2,
+  benches: benchIrrigation.wiring,
+  pump: new THREE.Vector3(dev.pump.position.x, TABLE_Y + 0.03, dev.pump.position.z - 0.07),
+  proximity: dev.proxCore.position,
+  probe: dev.probe,
+  probeTop: dev.probe.userData.baseOffset,
+  table: { y: TABLE_Y, z: TABLE_Z - 0.35 },
+});
+
 // Clique/gatilho em "interfaces": painel das bancadas, depois placas e porta da entrada.
 function uiRay(ray, opts) {
   return controlPanel.handleRay(ray) || intro.handleRay(ray, opts);
@@ -307,6 +319,7 @@ fps = new FirstPersonMode({
   onIntroRay: (ray) => uiRay(ray, { canWalk: false }),
   uiTargets: controlPanel.targets,
   lockedTargets: [plant.pot, ...analysisTargets],
+  infoTargets: [mainboard.group],
   onDrop: snapProbeToPot,
   modeTargets: [dev.modeButton, dev.modeLed],
   waterTargets: [dev.proxCore, dev.proxHalo],
@@ -414,6 +427,7 @@ function render() {
   const moisture = soilSensor.read();
   plant.update(moisture);
   dev.updateLeds({ probeIn, moisture, lowThreshold: irrigation.lowThreshold, pumping, mode: irrigation.mode, near });
+  mainboard.update(dt, { benchMotors: benchIrrigation.network.motors, pumping });
 
   // 6) Água e som.
   emitters.length = 0;
