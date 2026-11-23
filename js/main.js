@@ -286,7 +286,7 @@ const interaction = new XRInteraction({
 // Opção "andar ao clicar no chão" (PC). Começa desligada; o botão/tecla C liga.
 const clickWalk = createClickWalkOption();
 
-const body = createBody(scene, renderer, camera, interaction.controllers); // corpo na VR
+const body = createBody(scene, renderer, camera, interaction.controllers, orbit); // corpo: VR e PC
 
 setupDesktopInput({
   renderer,
