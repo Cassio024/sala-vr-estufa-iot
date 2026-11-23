@@ -88,8 +88,6 @@ export function buildGarden(scene) {
   const area = { minR: 6, maxR: 24, avoid };
 
   const jobs = [
-    scatterProp(scene, 'grass_medium_01', 35, { ...area, minR: 5, height: 0.45 }),
-    scatterProp(scene, 'grass_medium_02', 25, { ...area, minR: 5, height: 0.3 }),
     scatterProp(scene, 'flower_gazania', 18, { ...area, height: 0.3 }),
     scatterProp(scene, 'flower_ursinia', 16, { ...area, height: 0.3 }),
     scatterProp(scene, 'periwinkle_plant', 14, { ...area, height: 0.25 }),
@@ -98,8 +96,6 @@ export function buildGarden(scene) {
     scatterProp(scene, 'shrub_01', 9, { ...area, minR: 8, height: 1.1 }),
     scatterProp(scene, 'shrub_03', 10, { ...area, minR: 8, height: 0.9 }),
     scatterProp(scene, 'shrub_04', 11, { ...area, minR: 8, height: 0.9 }),
-    scatterProp(scene, 'fern_02', 8, { ...area, height: 0.5 }),
-    scatterProp(scene, 'calathea_orbifolia_01', 6, { ...area, height: 0.4 }),
     // Vasos com plantas na entrada.
     placeProp(scene, 'potted_plant_01', -1.6, 5.3, { height: 0.75 }),
     placeProp(scene, 'potted_plant_01', 1.6, 5.3, { height: 0.75, rotY: 1 }),

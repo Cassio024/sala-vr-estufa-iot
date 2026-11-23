@@ -20,7 +20,8 @@ const BED_CENTERS = [
   { x: 3.0, z: -8.0 },
 ];
 
-const FLOWERS = ['flower_gazania', 'flower_ursinia', 'periwinkle_plant', 'dandelion_01', 'flower_heliophila', 'celandine_01'];
+
+const FLOWERS = ['flower_gazania', 'flower_ursinia', 'periwinkle_plant', 'dandelion_01', 'flower_heliophila'];
 
 // Canteiro: um arbusto no centro e flores espalhadas em volta.
 export async function buildFlowerBeds(scene) {
