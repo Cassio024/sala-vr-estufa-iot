@@ -111,7 +111,7 @@ export function pbrMaterial(name, { repeat = [1, 1], color = 0xffffff, roughness
 // ---------------------------------------------------------------------------
 // Estufa: piso, vidro, estrutura metálica, telhado, luz do sol
 // ---------------------------------------------------------------------------
-export function buildGreenhouse(scene, { size = 8, height = 3 } = {}) {
+export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2048 } = {}) {
   const half = size / 2;
 
   // Luzes (uma única com sombra, pensando no headset standalone).
@@ -119,7 +119,7 @@ export function buildGreenhouse(scene, { size = 8, height = 3 } = {}) {
   const sun = new THREE.DirectionalLight(0xfff4e0, 2.5);
   sun.position.set(3, 7, 3);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); // 1024 no headset standalone
   const sc = sun.shadow.camera;
   sc.left = -6; sc.right = 6; sc.top = 6; sc.bottom = -6; sc.near = 1; sc.far = 20;
   sun.shadow.bias = -0.0004;

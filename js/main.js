@@ -6,15 +6,17 @@ import { setupRenderer, setupEnvironment, pbrMaterial, buildGreenhouse, buildBen
 import { tryLoadModel, makeTintable, tint } from './models.js';
 import { SoundManager } from './audio.js';
 import { XRInteraction, haptic } from './interaction.js';
+import { quality, FpsMeter, checkXRSupport } from './quality.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
 // ---------------------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(quality.pixelRatio); // limitado (1,5 no PC, 1 no headset)
 renderer.setSize(window.innerWidth, window.innerHeight);
 setupRenderer(renderer);
 renderer.xr.enabled = true;
+renderer.xr.setFoveation(1); // renderização foveada: menos pixels na borda da lente = mais FPS
 document.getElementById('app').appendChild(renderer.domElement);
 document.getElementById('app').appendChild(VRButton.createButton(renderer));
 
@@ -38,7 +40,7 @@ orbit.update();
 // Estufa, bancadas e mesa
 // ---------------------------------------------------------------------------
 const GREENHOUSE_SIZE = 8;
-const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3 });
+const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3, shadowMapSize: quality.shadowMapSize });
 buildBenches(scene, GREENHOUSE_SIZE);
 
 const TABLE_Y = 0.78;   // altura da superfície da mesa
@@ -254,7 +256,8 @@ tryLoadModel('assets/models/vaso.glb', { height: POT_HEIGHT }).then((m) => {
   m.position.set(0, TABLE_Y, TABLE_Z);
   scene.add(m);
 });
-tryLoadModel('assets/models/planta.glb', { height: 0.35 }).then((m) => {
+// Bomba e planta em glTF são pesadas (~326 mil triângulos juntas): no headset standalone ficam as formas simples.
+if (quality.loadHeavyModels) tryLoadModel('assets/models/planta.glb', { height: 0.35 }).then((m) => {
   if (!m) return;
   plant.visible = false;
   m.position.set(0, SOIL_Y, TABLE_Z);
@@ -262,7 +265,7 @@ tryLoadModel('assets/models/planta.glb', { height: 0.35 }).then((m) => {
   plantModel = m;
   plantTint = makeTintable(m);
 });
-tryLoadModel('assets/models/bomba.glb', { height: 0.14 }).then((m) => {
+if (quality.loadHeavyModels) tryLoadModel('assets/models/bomba.glb', { height: 0.14 }).then((m) => {
   if (!m) return;
   pump.visible = false;
   m.position.set(PUMP_POS.x, TABLE_Y, PUMP_POS.z);
@@ -363,6 +366,12 @@ function drawPanel(moisture, probeIn, pumpOn, mode, near, log) {
   pctx.fillStyle = '#9ca3af';
   log.forEach((line, i) => pctx.fillText(`• ${line}`, 40, 390 + i * 40));
 
+  if (quality.debug) {
+    pctx.font = '24px sans-serif';
+    pctx.fillStyle = '#fbbf24';
+    pctx.fillText(debugText, 40, 570);
+  }
+
   pctx.font = '24px sans-serif';
   pctx.fillStyle = '#6b7280';
   pctx.fillText('Gatilho: esfera azul = rega · botão cinza = modo · lateral: pegar · analógico: andar', 40, 610);
@@ -384,7 +393,10 @@ const clickSfx = sound.create(modeButton, sound.buffers.click, { volume: 0.8 });
 
 // O navegador só libera áudio depois de um gesto (clique, tecla ou entrar na VR).
 ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => sound.unlock()));
-renderer.xr.addEventListener('sessionstart', () => sound.unlock());
+renderer.xr.addEventListener('sessionstart', () => {
+  sound.unlock();
+  renderer.xr.setFoveation(1);
+});
 
 const tmp = new THREE.Vector3();
 
@@ -448,6 +460,20 @@ window.addEventListener('resize', () => {
 // Loop principal
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
+const fpsMeter = new FpsMeter();
+let debugText = '';
+let xrInfo = null;
+if (quality.debug) checkXRSupport().then((info) => { xrInfo = info; });
+
+// Linha de diagnóstico (?debug): ajuda a conferir o desempenho direto no headset.
+function updateDebugText(fps) {
+  const r = renderer.info.render;
+  const mode = renderer.xr.isPresenting ? 'VR' : 'PC';
+  const xr = xrInfo
+    ? `HTTPS:${xrInfo.secure ? 'sim' : 'NÃO'} WebXR:${xrInfo.webxr ? 'sim' : 'NÃO'} VR:${xrInfo.immersiveVR ? 'sim' : 'NÃO'}`
+    : '';
+  debugText = `${mode} ${fps} FPS · ${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tri · ${quality.low ? 'leve' : 'completa'} · ${xr}`;
+}
 let panelTimer = 0;
 let alertTimer = 0;
 let hapticTimer = 0;
@@ -531,6 +557,8 @@ function render() {
   }
 
   renderer.render(scene, camera);
+  const fps = fpsMeter.update(dt);
+  if (quality.debug) updateDebugText(fps);
 }
 
 drawPanel(soilSensor.read(), true, false, irrigation.mode, false, irrigation.log);
