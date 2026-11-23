@@ -1,5 +1,6 @@
 // Vaso, solo e planta (formas simples; trocadas por glTF se existirem em assets/models).
 import * as THREE from 'three';
+import { realMap } from '../textures.js';
 import { tryLoadModel, makeTintable, tint } from '../models.js';
 import { TABLE_Y, TABLE_Z } from './room.js';
 
@@ -21,7 +22,13 @@ export function createPlant(scene) {
   pot.castShadow = true;
   scene.add(pot);
 
-  const soilMat = new THREE.MeshStandardMaterial({ color: SOIL_DRY, roughness: 1 });
+  // Terra real (lama CC0); a cor vai de seca a molhada multiplicando a textura.
+  const soilMat = new THREE.MeshStandardMaterial({
+    color: SOIL_DRY,
+    map: realMap('assets/textures/terra/color.jpg'),
+    normalMap: realMap('assets/textures/terra/normal.jpg', { srgb: false }),
+    roughness: 1,
+  });
   const soil = new THREE.Mesh(new THREE.CircleGeometry(0.125, 32), soilMat);
   soil.rotation.x = -Math.PI / 2;
   soil.position.set(0, SOIL_Y, TABLE_Z);

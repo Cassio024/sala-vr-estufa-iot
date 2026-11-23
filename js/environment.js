@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { leafTextures, terracottaTextures, metalTexture } from './textures.js';
+import { leafTextures, terracottaTextures, realMap } from './textures.js';
 
 THREE.Cache.enabled = true;
 
@@ -68,19 +68,11 @@ export function setupEnvironment(renderer, scene, hdriUrl = 'assets/hdri/estufa.
 // Chão de grama verde: cor gerada por código (sempre verde) + relevo real
 // (normal map da textura CC0 em assets/textures/grama/normal.jpg).
 function grassGroundMaterial(repeat) {
+  // Cor verde gerada (a textura real é marrom); relevo e rugosidade são reais.
   const mat = new THREE.MeshStandardMaterial({ map: grassMap(repeat), roughness: 1 });
-  texLoader.load(
-    'assets/textures/grama/normal.jpg',
-    (t) => {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(...repeat);
-      mat.normalMap = t;
-      mat.normalScale.set(0.6, 0.6);
-      mat.needsUpdate = true;
-    },
-    undefined,
-    () => {} // sem o arquivo, fica só a cor verde
-  );
+  mat.normalMap = realMap('assets/textures/grama/normal.jpg', { repeat, srgb: false });
+  mat.normalScale.set(0.6, 0.6);
+  mat.roughnessMap = realMap('assets/textures/grama/roughness.jpg', { repeat, srgb: false });
   return mat;
 }
 
@@ -297,7 +289,14 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
     color: 0xcfeaf5, transparent: true, opacity: 0.16, roughness: 0.05,
     side: THREE.DoubleSide, depthWrite: false,
   });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, map: metalTexture().map, metalness: 0.8, roughness: 0.35 });
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0xd1d5db,
+    map: realMap('assets/textures/metal/color.jpg'),
+    normalMap: realMap('assets/textures/metal/normal.jpg', { srgb: false }),
+    roughnessMap: realMap('assets/textures/metal/roughness.jpg', { srgb: false }),
+    metalness: 0.8,
+    roughness: 1,
+  });
 
   // Paredes laterais e de trás inteiras.
   const wallGeo = new THREE.PlaneGeometry(size, height);

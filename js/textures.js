@@ -132,3 +132,14 @@ export function softDotTexture() {
   g.fillRect(0, 0, 64, 64);
   return toTexture(c);
 }
+
+// Textura real (arquivo em assets/textures): não altera a cor do material,
+// só o mapa. Se o arquivo não existir, o material fica com a cor sólida.
+export function realMap(path, { repeat = [1, 1], srgb = true } = {}) {
+  const tex = new THREE.TextureLoader().load(path, undefined, undefined, () => {});
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(...repeat);
+  tex.anisotropy = 8;
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
