@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { leafTextures, terracottaTextures, metalTexture } from './textures.js';
+import { leafTextures, terracottaTextures, realMap } from './textures.js';
 
 THREE.Cache.enabled = true;
 
 // Direção do sol: a mesma luz direcional da estufa usa esta posição.
 // Sol baixo (≈ 30° acima do horizonte): luz quente e sombras longas.
-export const SUN_POSITION = new THREE.Vector3(6, 5, 4);
+export const SUN_POSITION = new THREE.Vector3(7, 3.2, 3.5);
 
 // Porta da estufa (fica no centro da parede da frente, z = +size/2).
 export const DOOR_W = 1.2;
@@ -19,7 +19,7 @@ export const DOOR_H = 2.2;
 // ---------------------------------------------------------------------------
 export function setupRenderer(renderer) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.08;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -33,8 +33,8 @@ export function buildSky(scene) {
   const sky = new Sky();
   sky.scale.setScalar(60); // dentro do far da câmera (80)
   const u = sky.material.uniforms;
-  u.turbidity.value = 3;
-  u.rayleigh.value = 1.2;
+  u.turbidity.value = 5;   // mais névoa: céu mais suave e horizonte quente
+  u.rayleigh.value = 2.6;
   u.mieCoefficient.value = 0.004;
   u.mieDirectionalG.value = 0.8;
   u.sunPosition.value.copy(SUN_POSITION).normalize();
@@ -68,19 +68,11 @@ export function setupEnvironment(renderer, scene, hdriUrl = 'assets/hdri/estufa.
 // Chão de grama verde: cor gerada por código (sempre verde) + relevo real
 // (normal map da textura CC0 em assets/textures/grama/normal.jpg).
 function grassGroundMaterial(repeat) {
+  // Cor verde gerada (a textura real é marrom); relevo e rugosidade são reais.
   const mat = new THREE.MeshStandardMaterial({ map: grassMap(repeat), roughness: 1 });
-  texLoader.load(
-    'assets/textures/grama/normal.jpg',
-    (t) => {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(...repeat);
-      mat.normalMap = t;
-      mat.normalScale.set(0.6, 0.6);
-      mat.needsUpdate = true;
-    },
-    undefined,
-    () => {} // sem o arquivo, fica só a cor verde
-  );
+  mat.normalMap = realMap('assets/textures/grama/normal.jpg', { repeat, srgb: false });
+  mat.normalScale.set(0.6, 0.6);
+  mat.roughnessMap = realMap('assets/textures/grama/roughness.jpg', { repeat, srgb: false });
   return mat;
 }
 
@@ -262,8 +254,9 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
   const half = size / 2;
 
   // Luzes (uma única com sombra, pensando no headset standalone).
-  scene.add(new THREE.HemisphereLight(0xdff1ff, 0x3a3a44, 0.6));
-  const sun = new THREE.DirectionalLight(0xffe2b8, 3.2);
+  // Fim de tarde: céu azul-claro em cima, chão quente embaixo, sol laranja baixo.
+  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x6b5340, 0.75));
+  const sun = new THREE.DirectionalLight(0xffa35c, 3.6);
   sun.position.copy(SUN_POSITION);
   sun.castShadow = true;
   sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); // quality.js: 1024 no headset standalone
@@ -297,7 +290,14 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
     color: 0xcfeaf5, transparent: true, opacity: 0.16, roughness: 0.05,
     side: THREE.DoubleSide, depthWrite: false,
   });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, map: metalTexture().map, metalness: 0.8, roughness: 0.35 });
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0xd1d5db,
+    map: realMap('assets/textures/metal/color.jpg'),
+    normalMap: realMap('assets/textures/metal/normal.jpg', { srgb: false }),
+    roughnessMap: realMap('assets/textures/metal/roughness.jpg', { srgb: false }),
+    metalness: 0.8,
+    roughness: 1,
+  });
 
   // Paredes laterais e de trás inteiras.
   const wallGeo = new THREE.PlaneGeometry(size, height);
@@ -409,6 +409,25 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
     r.position.set(x, y, z);
     r.castShadow = true;
     scene.add(r);
+  }
+
+  // Embasamento de concreto em volta da estufa (com vão na porta).
+  const curbH = 0.3;
+  const curbT = 0.25;
+  const curbMat = pbrMaterial('concreto', { repeat: [4, 1], color: 0xe2e0da, roughness: 0.9 });
+  const addCurb = (w, h, d, x, y, z) => {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), curbMat);
+    c.position.set(x, y, z);
+    c.castShadow = true;
+    c.receiveShadow = true;
+    scene.add(c);
+  };
+  addCurb(size + curbT * 2, curbH, curbT, 0, curbH / 2, -half - curbT / 2); // fundo
+  addCurb(curbT, curbH, size, -half - curbT / 2, curbH / 2, 0);          // esquerda
+  addCurb(curbT, curbH, size, half + curbT / 2, curbH / 2, 0);           // direita
+  const frontW = half - DOOR_W / 2;                                       // frente, com vão da porta
+  for (const sx of [-1, 1]) {
+    addCurb(frontW, curbH, curbT, sx * (half + DOOR_W / 2) / 2, curbH / 2, half + curbT / 2);
   }
 
   return { size, height, floor, ground, door, roofY: (z) => height + 1 - Math.abs(z) / half };

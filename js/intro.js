@@ -103,59 +103,82 @@ function stoneMap() {
   return t;
 }
 
-function drawStationBoard(g, w, h, number, title, short) {
-  g.fillStyle = '#0f172a';
+// Fundo de holograma: painel translúcido em azul-ciano, grade e linhas de varredura.
+function signBackground(g, w, h, accent = '#22d3ee') {
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = 'rgba(8, 47, 73, 0.55)';
   g.fillRect(0, 0, w, h);
-  g.fillStyle = '#38bdf8';
-  g.fillRect(0, 0, w, 10);
+  g.strokeStyle = 'rgba(34, 211, 238, 0.14)';
+  g.lineWidth = 1;
+  for (let x = 0; x < w; x += 24) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+  for (let y = 0; y < h; y += 24) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  g.fillStyle = 'rgba(0, 0, 0, 0.16)';
+  for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 2); // linhas de varredura
+  g.strokeStyle = accent;
+  g.lineWidth = 4;
+  g.shadowColor = accent;
+  g.shadowBlur = 16;
+  g.strokeRect(6, 6, w - 12, h - 12);
+  g.shadowBlur = 0;
+}
 
+function drawStationBoard(g, w, h, number, title, short) {
+  signBackground(g, w, h);
+
+  // Número em círculo com brilho.
+  g.fillStyle = '#38bdf8';
+  g.shadowColor = '#38bdf8';
+  g.shadowBlur = 20;
   g.beginPath();
-  g.arc(56, 84, 28, 0, Math.PI * 2);
+  g.arc(72, 96, 36, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = '#0f172a';
-  g.font = 'bold 34px sans-serif';
+  g.shadowBlur = 0;
+  g.fillStyle = '#0b1220';
+  g.font = 'bold 40px sans-serif';
   g.textAlign = 'center';
-  g.fillText(String(number), 56, 96);
+  g.fillText(String(number), 72, 110);
   g.textAlign = 'left';
 
-  g.fillStyle = '#f1f5f9';
-  g.font = 'bold 34px sans-serif';
-  g.fillText(title, 100, 96);
+  g.fillStyle = '#e0f7ff';
+  g.font = 'bold 40px sans-serif';
+  g.shadowColor = '#22d3ee';
+  g.shadowBlur = 12;
+  g.fillText(title, 132, 110);
+  g.shadowBlur = 0;
 
-  g.fillStyle = '#cbd5e1';
-  g.font = '26px sans-serif';
-  wrapText(g, short, w - 60).slice(0, 4).forEach((line, i) => g.fillText(line, 30, 160 + i * 36));
+  g.fillStyle = '#bae6fd';
+  g.font = '28px sans-serif';
+  wrapText(g, short, w - 70).slice(0, 4).forEach((line, i) => g.fillText(line, 36, 185 + i * 38));
 
-  g.fillStyle = '#38bdf8';
-  g.font = '22px sans-serif';
-  g.fillText('Clique para ler mais', 30, h - 28);
+  g.fillStyle = '#67e8f9';
+  g.font = 'bold 24px sans-serif';
+  g.fillText('Clique para ler mais  ›', 36, h - 30);
 }
 
 function drawDetail(g, w, h, title, paragraphs) {
-  g.fillStyle = '#0f172a';
-  g.fillRect(0, 0, w, h);
+  signBackground(g, w, h);
+
+  g.fillStyle = '#f8fafc';
+  g.font = 'bold 56px sans-serif';
+  g.fillText(title, 56, 116);
   g.fillStyle = '#38bdf8';
-  g.fillRect(0, 0, w, 12);
+  g.fillRect(56, 140, 160, 5);
 
-  g.fillStyle = '#f1f5f9';
-  g.font = 'bold 52px sans-serif';
-  g.fillText(title, 50, 110);
-
-  let y = 190;
-  g.fillStyle = '#cbd5e1';
-  g.font = '30px sans-serif';
+  let y = 200;
+  g.fillStyle = '#e2e8f0';
+  g.font = '32px sans-serif';
   for (const p of paragraphs) {
-    const lines = wrapText(g, p, w - 100);
+    const lines = wrapText(g, p, w - 112);
     for (const line of lines) {
-      g.fillText(line, 50, y);
-      y += 42;
+      g.fillText(line, 56, y);
+      y += 44;
     }
-    y += 22;
+    y += 26;
   }
 
   g.fillStyle = '#64748b';
   g.font = '24px sans-serif';
-  g.fillText('Clique em qualquer lugar para fechar', 50, h - 40);
+  g.fillText('Clique em qualquer lugar para fechar', 56, h - 36);
 }
 
 function texture(c) {
@@ -210,7 +233,11 @@ export class Intro {
     STATIONS.forEach((station, i) => {
       const { c, g } = makeCanvas(512, 320);
       drawStationBoard(g, 512, 320, i + 1, station.title, station.short);
-      const boardMat = new THREE.MeshBasicMaterial({ map: texture(c), side: THREE.DoubleSide });
+      // Holograma: translúcido e aditivo (a luz soma, como projeção).
+      const boardMat = new THREE.MeshBasicMaterial({
+        map: texture(c), side: THREE.DoubleSide, transparent: true, opacity: 0.9,
+        depthWrite: false,
+      });
       const board = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5625), boardMat);
       board.position.set(0, 1.4, 0.03);
       board.userData.station = station;
@@ -224,25 +251,36 @@ export class Intro {
       // Placa sempre virada para o caminho.
       group.rotation.y = station.x < 0 ? Math.PI / 2 : -Math.PI / 2;
       group.add(post, board);
+      // Base de projeção: anel de luz no chão.
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.14, 0.18, 32).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      ring.position.y = 0.012;
+      group.add(ring);
       scene.add(group);
 
       this.pickables.push(board);
-      this.boards.push({ group, boardMat, station });
+      this.boards.push({ group, boardMat, station, phase: i * 1.7 });
     });
   }
 
   _buildEntrance(scene) {
     const { c, g } = makeCanvas(512, 160);
-    g.fillStyle = '#16a34a';
-    g.fillRect(0, 0, 512, 160);
-    g.fillStyle = '#ffffff';
-    g.font = 'bold 56px sans-serif';
+    signBackground(g, 512, 160);
+    g.fillStyle = '#e0f7ff';
+    g.shadowColor = '#22d3ee';
+    g.shadowBlur = 14;
+    g.font = 'bold 52px sans-serif';
     g.textAlign = 'center';
     g.fillText('ENTRAR NA ESTUFA  →', 256, 100);
 
     const sign = new THREE.Mesh(
       new THREE.PlaneGeometry(0.9, 0.28),
-      new THREE.MeshBasicMaterial({ map: texture(c), side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({
+        map: texture(c), side: THREE.DoubleSide, transparent: true, opacity: 0.92,
+        depthWrite: false,
+      })
     );
     sign.position.set(0, DOOR_H + 0.25, DOOR_Z + 0.04);
     sign.userData.entrance = true;
@@ -332,6 +370,7 @@ export class Intro {
   }
 
   update(dt) {
+    this.time = (this.time || 0) + dt;
     if (this.walkTarget) {
       const h = this.viewer.head();
       const dx = this.walkTarget.x - h.x;
@@ -360,6 +399,9 @@ export class Intro {
     for (const b of this.boards) {
       const near = Math.hypot(h.x - b.group.position.x, h.z - b.group.position.z) < NEAR;
       b.boardMat.color.setScalar(near ? 1.25 : 1);
+      // Holograma “vivo”: flutua devagar e a intensidade oscila levemente.
+      b.group.position.y = Math.sin(this.time * 1.4 + b.phase) * 0.02;
+      b.boardMat.opacity = 0.88 + Math.sin(this.time * 11 + b.phase) * 0.04;
     }
   }
 }
