@@ -119,7 +119,7 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 | | PC (completa) | Headset (leve) |
 |---|---|---|
 | Planta glTF (Poly Haven comprimida, ~8 mil tri) | sim | sim |
-| Bomba d'água | modelo `bomba.glb` (150 mil tri) | **bomba feita por nós** (`js/scene/pump.js`, ~900 tri: motor com aletas, cabeçote, base; vibra ligada) |
+| Bomba d'água | modelo `bomba.glb` (150 mil tri) | **bomba feita por nós** (`js/scene/pump.js`, ~1.350 tri: motor com aletas, cabeçote, base; vibra ligada) |
 | Árvores (InstancedMesh, 2 draw calls) | 70 | 40 |
 | Jardim: flores, arbustos, grama (InstancedMesh, 1 draw call por tipo) | todas as cópias | metade das cópias |
 | Cerca de madeira em volta do mapa (InstancedMesh, 2 draw calls) | sim | sim |

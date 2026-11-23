@@ -7,7 +7,7 @@
 //   Em cima do motor fica a caixa de ligação (onde chega o fio vermelho) com o LED.
 //   Ligada, a bomba vibra um pouco e o eixo aparente gira.
 //
-// Desempenho: as peças de cada material são mescladas (4 malhas, ~900 triângulos).
+// Desempenho: as peças de cada material são mescladas (5 malhas, ~1.350 triângulos).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
