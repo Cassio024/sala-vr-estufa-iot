@@ -22,7 +22,7 @@ Tour animado (versão anterior da sala): [docs/img/tour.gif](docs/img/tour.gif)
 | Água em excesso | Acima de **90%** o sensor acusa solo **encharcado**: a bomba para, o botão REGAR fica bloqueado (cinza), toca um alerta, o painel mostra **⚠ ÁGUA EM EXCESSO**, a água empoça na terra e no pratinho e as folhas amarelam um pouco. Libera quando a terra seca abaixo de 85%. |
 | Bomba d'água + tubo | Liga sozinha quando a umidade cai abaixo de 35% e desliga ao chegar em 70% (modo automático). |
 | Botão REGAR (azul, na frente da bomba) | Rega manual por alguns segundos, no modo automático ou manual. Afunda ao apertar e acende enquanto a bomba rega. |
-| Sensor de proximidade (esfera azul) | Dispara quando a mão/controle entra na área azul. Com o gatilho perto dela também rega. |
+| Sensor de proximidade (plaquinha azul na mesa) | Detecta quando a mão/controle chega perto: o LED dele acende e o painel mostra "mão detectada". Não rega; a rega manual é só pelo botão REGAR. |
 | Botão de modo (caixa cinza) | Alterna entre **automático** e **manual**. |
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
 | Painel das bancadas (perto da porta, à direita) | Escolha **Todas / Esquerda / Direita**, o modo **Automático / Manual**, **💧 Regar agora** (no manual), **Liberar todos** e os limites do automático: **Regar abaixo de** (padrão 35%) e **Parar em** (padrão 70%), com − / + de 5 em 5% (sempre com 10% de diferença entre eles e no máximo 85%). A grade mostra os 16 vasos (umidade e estado); **clique num vaso para bloquear ("não regar") ou liberar** a rega dele. Funciona com mouse, mira do modo FPS e raio do controle VR. |

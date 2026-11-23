@@ -1,7 +1,7 @@
 // Modo FPS (primeira pessoa) no computador, como um jogo:
 //   F ou botão "Modo FPS" -> entra · Esc -> sai (volta para a câmera orbital)
 //   W A S D / setas -> andar · Shift -> correr · mouse -> olhar
-//   clique esquerdo -> usar o que está na mira (botão, esfera, placa, porta),
+//   clique esquerdo -> usar o que está na mira (botões, painel, placa, porta),
 //                      pegar o regador/sensor e soltar onde estiver mirando
 //   botão direito (segurando o regador e mirando o vaso) -> regar
 // O mouse fica "preso" na tela (Pointer Lock), como nos jogos.
@@ -23,7 +23,7 @@ export class FirstPersonMode {
    * @param {import('three/addons/controls/OrbitControls.js').OrbitControls} o.orbit
    * @param {(raycaster: THREE.Raycaster) => boolean} o.onIntroRay placas e porta
    * @param {THREE.Object3D[]} o.modeTargets botão de modo
-   * @param {THREE.Object3D[]} o.waterTargets esfera azul
+   * @param {THREE.Object3D[]} o.waterTargets botão REGAR
    * @param {THREE.Object3D[]} o.grabbables regador e sensor
    * @param {THREE.Object3D} o.can regador (para regar com o botão direito)
    * @param {{x:number,y:number,z:number}} o.potCenter centro do vaso (no nível do solo)

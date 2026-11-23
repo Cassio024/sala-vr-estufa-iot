@@ -13,7 +13,7 @@ export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets,
     downY = e.clientY;
   });
 
-  // Clicar no botão cinza troca o modo; clicar na esfera azul rega.
+  // Clicar no botão cinza troca o modo; clicar no botão REGAR rega.
   renderer.domElement.addEventListener('pointerup', (e) => {
     if (isBusy()) return; // modo FPS: os cliques são tratados em fps.js (mira no centro da tela)
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return; // foi um arrasto (girar a câmera)

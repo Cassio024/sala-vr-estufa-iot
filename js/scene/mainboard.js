@@ -73,7 +73,7 @@ function frontTexture() {
  * @param {number} o.wallZ z da parede de trás (a caixa encosta nela)
  * @param {{relay: THREE.Vector3[], power: THREE.Vector3[]}[]} o.benches caminho de cada fio na bancada, do chão (1º ponto) até o aparelho
  * @param {THREE.Vector3} o.pump bomba da mesa (ponto de ligação, atrás dela)
- * @param {THREE.Vector3} o.proximity sensor de proximidade (centro)
+ * @param {THREE.Vector3} o.proximity sensor de proximidade (base, em cima da mesa)
  * @param {THREE.Object3D} o.probe sensor de umidade (pode ser pego)
  * @param {number} o.probeTop distância do centro do sensor até o topo dele
  * @param {{z:number, y:number, legX:number, legZ:number}} o.table borda de trás da mesa (z), altura do tampo (y) e pernas de trás (±legX, legZ)
@@ -164,11 +164,8 @@ export function createMainboard(scene, { wallZ, benches, pump, proximity, probe,
   };
   geos.power.push(wire(tableRun(Math.sign(pump.x) || -1, 0, 0.025, pump)));
 
-  // Sensor de proximidade: uma base pequena no tampo, embaixo da "bolinha".
-  const proxBase = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.025, 0.03), new THREE.MeshStandardMaterial({ color: 0x1e3a8a }));
-  proxBase.position.set(proximity.x, table.y + 0.0125, proximity.z);
-  scene.add(proxBase);
-  geos.sensor.push(wire(tableRun(1, 0, 0.025, v(proximity.x, table.y + 0.006, proximity.z - 0.015))));
+  // Sensor de proximidade (plaquinha em cima da mesa, ver devices.js): o fio chega por trás.
+  geos.sensor.push(wire(tableRun(1, 0, 0.025, v(proximity.x, table.y + 0.006, proximity.z - 0.0125))));
 
   // Conector do sensor de umidade na borda de trás da mesa (o fio móvel parte daqui).
   const probeX = 0.2;

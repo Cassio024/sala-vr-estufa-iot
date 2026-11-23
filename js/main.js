@@ -222,7 +222,7 @@ const mainboard = createMainboard(scene, {
   wallZ: -GREENHOUSE_SIZE / 2,
   benches: benchIrrigation.wiring,
   pump: dev.PUMP_POWER, // caixa de ligação em cima do motor da bomba
-  proximity: dev.proxCore.position,
+  proximity: dev.PROX_SENSOR_POS,
   probe: dev.probe,
   probeTop: dev.probe.userData.baseOffset,
   table: { y: TABLE_Y, z: TABLE_Z - 0.35, legX: 0.6, legZ: TABLE_Z - 0.3 },
@@ -256,7 +256,7 @@ function toggleMode() {
   sound.playOnce(clickSfx);
 }
 
-// Gatilho do controle VR: primeiro placas/porta/chão; depois botão cinza (modo) e esfera azul (rega).
+// Gatilho do controle VR: primeiro placas/porta/chão; depois botão cinza (modo) e botão REGAR (rega).
 const _rayOrigin = new THREE.Vector3();
 const _rayDir = new THREE.Vector3();
 const _rayQuat = new THREE.Quaternion();
@@ -275,8 +275,6 @@ function onSelect(controller) {
     toggleMode();
     haptic(controller, 0.6, 60);
   } else if (p.distanceTo(dev.WATER_BUTTON_POS) < 0.12) {
-    haptic(controller, manualWater() ? 0.8 : 0.3, 120);
-  } else if (dev.proximity.isTriggered(p)) {
     haptic(controller, manualWater() ? 0.8 : 0.3, 120);
   }
 }
@@ -325,7 +323,7 @@ setupDesktopInput({
   renderer,
   camera,
   modeTargets: [dev.modeButton, dev.modeLed],
-  waterTargets: [...dev.waterButton.children, dev.proxCore, dev.proxHalo],
+  waterTargets: dev.waterButton.children,
   onToggleMode: toggleMode,
   onWater: manualWater,
   // Clique no PC: placas e porta vêm antes dos botões; andar pelo chão só se a opção estiver ligada.
@@ -345,7 +343,7 @@ fps = new FirstPersonMode({
   infoTargets: [mainboard.group],
   onDrop: snapProbeToPot,
   modeTargets: [dev.modeButton, dev.modeLed],
-  waterTargets: [...dev.waterButton.children, dev.proxCore, dev.proxHalo],
+  waterTargets: dev.waterButton.children,
   grabbables,
   can: dev.can,
   potCenter: { x: 0, y: SOIL_Y, z: TABLE_Z },

@@ -210,21 +210,27 @@ export function createDevices(scene) {
   modeLed.position.set(MODE_BUTTON_POS.x, MODE_BUTTON_POS.y + 0.03, MODE_BUTTON_POS.z);
   scene.add(modeLed);
 
-  // Sensor de proximidade — a área azul mostra o raio de detecção.
-  const PROX_POS = new THREE.Vector3(0.35, TABLE_Y + 0.25, TABLE_Z);
-  const proximity = new ProximitySensor(PROX_POS, 0.22);
-  const proxCore = new THREE.Mesh(
-    new THREE.SphereGeometry(0.025, 16, 12),
-    new THREE.MeshBasicMaterial({ color: 0x22d3ee })
-  );
-  proxCore.position.copy(PROX_POS);
-  scene.add(proxCore);
-  const proxHalo = new THREE.Mesh(
-    new THREE.SphereGeometry(proximity.range, 24, 16),
-    new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.1, depthWrite: false })
-  );
-  proxHalo.position.copy(PROX_POS);
-  scene.add(proxHalo);
+  // Sensor de proximidade (ultrassônico, como o HC-SR04): plaquinha azul em cima da
+  // mesa com os dois "olhos" virados para cima. Ele só DETECTA a mão (o painel mostra
+  // "mão detectada" e o LED acende); a rega manual é só pelo botão REGAR.
+  const PROX_SENSOR_POS = new THREE.Vector3(0.35, TABLE_Y, TABLE_Z);
+  const PROX_POS = new THREE.Vector3(0.35, TABLE_Y + 0.15, TABLE_Z); // centro da área de detecção
+  const proximity = new ProximitySensor(PROX_POS, 0.16);
+  const proxSensor = new THREE.Group();
+  const proxBoard = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.025), new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.5 }));
+  proxBoard.position.y = 0.006;
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.3 });
+  const eyeGeo = new THREE.CylinderGeometry(0.0085, 0.0085, 0.012, 16);
+  for (const x of [-0.013, 0.013]) {
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(x, 0.018, 0);
+    proxSensor.add(eye);
+  }
+  const proxLed = new THREE.Mesh(new THREE.SphereGeometry(0.003, 8, 6), new THREE.MeshBasicMaterial({ color: 0x1f2937, toneMapped: false }));
+  proxLed.position.set(0, 0.013, 0.01);
+  proxSensor.add(proxBoard, proxLed);
+  proxSensor.position.copy(PROX_SENSOR_POS);
+  scene.add(proxSensor);
 
   // Bomba em glTF (~150 mil triângulos): só carrega no modo completo (PC).
   // No modo leve (headset) fica a bomba feita por nós.
@@ -258,7 +264,7 @@ export function createDevices(scene) {
     pumpLed.material.color.set(pumping ? 0x38bdf8 : 0x1f2937);
     if (pump.visible) pumpModel.update(dt, pumping); // vibra e gira o eixo quando ligada
     modeLed.material.color.set(mode === 'auto' ? 0x22c55e : 0xfacc15);
-    proxHalo.material.opacity = near ? 0.35 : 0.1;
+    proxLed.material.color.set(near ? 0x22d3ee : 0x1f2937); // acende com a mão perto
   }
 
   return {
@@ -267,7 +273,7 @@ export function createDevices(scene) {
     pump, SPOUT, PUMP_POWER: portWorld(PUMP_PORTS.power),
     modeButton, modeLed, MODE_BUTTON_POS,
     waterButton, WATER_BUTTON_POS, pressWaterButton,
-    proximity, proxCore, proxHalo,
+    proximity, PROX_SENSOR_POS,
     loadModels, updateLeds,
   };
 }

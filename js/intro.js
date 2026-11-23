@@ -55,7 +55,7 @@ export const STATIONS = [
     short: 'Use o botão REGAR, o botão cinza e o regador.',
     full: [
       'Botão azul REGAR (ao lado da bomba): rega manual por alguns segundos.',
-      'Esfera azul: sensor de proximidade. Detecta a mão; com o gatilho perto dela também rega.',
+      'Sensor de proximidade (plaquinha azul na mesa): detecta a mão e acende o LED.',
       'Botão cinza: troca entre modo automático e manual.',
       'Regador: pegue com o gatilho lateral e incline sobre o vaso para regar.',
       'Painel na parede: mostra umidade, bomba, modo e os últimos eventos.',
