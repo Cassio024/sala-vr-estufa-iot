@@ -167,7 +167,7 @@ buildContactShadows(scene, [
   { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.16 },  // sombra do vaso
 ]);
 const clouds = quality.low ? null : buildClouds(scene);
-if (!quality.low) buildFlowerBeds(scene).catch((err) => console.error('[mapa] falha nos canteiros:', err));
+if (!quality.low) buildFlowerBeds(scene); // canteiros de flores feitos por código
 const dust = quality.low ? null : buildDust(scene);
 
 // Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
