@@ -5,12 +5,18 @@
 // world = {
 //   half,           // metade do tamanho da estufa (paredes em x = ±half e z = ±half)
 //   doorHalfWidth,  // metade da largura da porta (centrada em x = 0, parede da frente)
-//   limit,          // limite do mundo (|x| e |z| até aqui)
+//   bounds: { minX, maxX, minZ, maxZ }, // limite do mapa (a cerca em volta do jardim)
+//   limit,          // (antigo) limite quadrado |x|,|z| <= limit, se não houver bounds
 //   boxes: [{ x, z, hw, hd }], // móveis: centro e meia-largura / meia-profundidade
 // }
 
 export function createCollider(world, radius = 0.25) {
+  const L = world.limit ?? Infinity;
+  const B = world.bounds ?? { minX: -L, maxX: L, minZ: -L, maxZ: L };
+  const clampX = (v) => Math.min(B.maxX, Math.max(B.minX, v));
+  const clampZ = (v) => Math.min(B.maxZ, Math.max(B.minZ, v));
   function blocked(x, z) {
+    if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ) return true; // fora do mapa
     for (const b of world.boxes) {
       if (Math.abs(x - b.x) < b.hw + radius && Math.abs(z - b.z) < b.hd + radius) return true;
     }
@@ -24,7 +30,6 @@ export function createCollider(world, radius = 0.25) {
     return false;
   }
 
-  const clamp = (v) => Math.min(world.limit, Math.max(-world.limit, v));
 
   /**
    * Move `pos` (objeto com x e z) em (dx, dz) respeitando a colisão.
@@ -34,13 +39,13 @@ export function createCollider(world, radius = 0.25) {
   function tryMove(pos, dx, dz) {
     const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (radius * 0.8)));
     for (let i = 0; i < steps; i++) {
-      const nx = clamp(pos.x + dx / steps);
+      const nx = clampX(pos.x + dx / steps);
       if (!blocked(nx, pos.z)) pos.x = nx;
-      const nz = clamp(pos.z + dz / steps);
+      const nz = clampZ(pos.z + dz / steps);
       if (!blocked(pos.x, nz)) pos.z = nz;
     }
     return pos;
   }
 
-  return { blocked, tryMove, radius };
+  return { blocked, tryMove, radius, bounds: B };
 }

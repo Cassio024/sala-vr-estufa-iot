@@ -180,12 +180,6 @@ export function createPlant(scene) {
   // pedrinhas e o caule são uma malha só ("stem"/"base"); ela é descartada (senão
   // aparece um segundo vaso em cima do vaso da mesa) e o caule daqui fica no lugar.
   function loadModels() {
-    tryLoadModel('assets/models/vaso.glb', { height: POT_HEIGHT }).then((m) => {
-      if (!m) return;
-      pot.visible = false;
-      m.position.set(0, TABLE_Y, TABLE_Z);
-      scene.add(m);
-    });
     tryLoadModel('assets/models/polyhaven/potted_plant_01.glb').then((m) => {
       if (!m) return;
       const drop = [];

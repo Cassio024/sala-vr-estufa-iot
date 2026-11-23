@@ -33,15 +33,9 @@ function frontTexture() {
   const g = c.getContext('2d');
   g.fillStyle = '#d1d5db';
   g.fillRect(0, 0, W, H);
-  g.fillStyle = '#0f172a';
-  g.fillRect(24, 24, W - 48, 96);
-  g.fillStyle = '#22c55e';
-  g.font = 'bold 54px sans-serif';
-  g.textAlign = 'center';
-  g.fillText('PLACA-MÃE', W / 2, 90);
   g.fillStyle = '#1f2937';
-  g.font = 'bold 22px sans-serif';
-  g.fillText('ESP32 · controla relés, bombas e sensores', W / 2, 160);
+  g.font = 'bold 40px sans-serif';
+  g.fillText('FIOS', 48, 84);
   // Legenda das cores dos fios.
   const rows = [
     ['#111111', 'preto: sinal dos relés'],
@@ -49,13 +43,13 @@ function frontTexture() {
     ['#facc15', 'amarelo: sensores'],
   ];
   g.textAlign = 'left';
-  g.font = '26px sans-serif';
+  g.font = '28px sans-serif';
   rows.forEach(([col, txt], i) => {
-    const y = 214 + i * 44;
+    const y = 160 + i * 70;
     g.fillStyle = col;
-    g.fillRect(60, y - 10, 60, 12);
+    g.fillRect(48, y - 14, 80, 18);
     g.fillStyle = '#1f2937';
-    g.fillText(txt, 136, y + 4);
+    g.fillText(txt, 150, y + 4);
   });
   // Etiqueta de alerta elétrico.
   g.fillStyle = '#facc15';
@@ -77,14 +71,15 @@ function frontTexture() {
  * @param {THREE.Scene} scene
  * @param {object} o
  * @param {number} o.wallZ z da parede de trás (a caixa encosta nela)
- * @param {{board: THREE.Vector3, motor: THREE.Vector3}[]} o.benches ponto de ligação da placa de relés e do motor de cada bancada
+ * @param {{relay: THREE.Vector3[], power: THREE.Vector3[]}[]} o.benches caminho de cada fio na bancada, do chão (1º ponto) até o aparelho
  * @param {THREE.Vector3} o.pump bomba da mesa (ponto de ligação, atrás dela)
  * @param {THREE.Vector3} o.proximity sensor de proximidade (centro)
  * @param {THREE.Object3D} o.probe sensor de umidade (pode ser pego)
  * @param {number} o.probeTop distância do centro do sensor até o topo dele
- * @param {{x:number, z:number, y:number}} o.table borda de trás da mesa (z) e altura do tampo (y)
+ * @param {{z:number, y:number, legX:number, legZ:number}} o.table borda de trás da mesa (z), altura do tampo (y) e pernas de trás (±legX, legZ)
+ * @param {{x:number, z:number, rimY:number, radius:number}} o.pot vaso principal: o fio do sensor passa por cima da borda
  */
-export function createMainboard(scene, { wallZ, benches, pump, proximity, probe, probeTop, table }) {
+export function createMainboard(scene, { wallZ, benches, pump, proximity, probe, probeTop, table, pot }) {
   const group = new THREE.Group();
   const BOX = { w: 0.5, h: 0.4, d: 0.14, y: 1.25 };
   const boxZ = wallZ + 0.02 + BOX.d / 2;
@@ -133,49 +128,55 @@ export function createMainboard(scene, { wallZ, benches, pump, proximity, probe,
     const x = side * (0.02 + 0.025 * slot++);
     return [v(x, outY, boxZ), v(x, DUCT_Y, boxZ), v(x, DUCT_Y, ductZ)];
   };
-  // Do chão sobe atrás da bancada e chega no aparelho.
-  const benchRun = (side, target, zOffset) => {
-    const pts = leave(side);
-    const riseZ = target.z - 0.33 - zOffset; // atrás da ponta da bancada
-    pts.push(v(target.x, DUCT_Y, ductZ), v(target.x, DUCT_Y, riseZ), v(target.x, target.y, riseZ), target);
-    return pts;
+  // Da canaleta vai pelo chão até o pé da bancada e segue o caminho que a bancada informou
+  // (sobe pela perna, contorna a borda do tampo e chega na placa de relés / motor).
+  const benchRun = (path) => {
+    const start = path[0];
+    return [...leave(Math.sign(start.x) || 1), v(start.x, DUCT_Y, ductZ), ...path];
   };
-  benches.forEach(({ board, motor }, i) => {
-    const side = Math.sign(board.x) || (i === 0 ? -1 : 1);
-    geos.relay.push(wire(benchRun(side, board, 0)));
-    geos.power.push(wire(benchRun(side, motor, 0.02)));
-  });
+  for (const { relay, power } of benches) {
+    geos.relay.push(wire(benchRun(relay)));
+    geos.power.push(wire(benchRun(power)));
+  }
 
-  // Mesa do meio: os fios correm no chão até a borda de trás da mesa e sobem pela perna.
-  const tableRun = (x, target) => {
-    const pts = leave(Math.sign(x) || 1);
-    pts.push(
+  // Mesa do meio: os fios vão pelo chão até a perna de trás, sobem por ela, contornam a
+  // borda do tampo e correm junto da borda de trás até o aparelho (sem atravessar a mesa).
+  // lane = distância da borda de trás em que o fio corre no tampo (fios lado a lado).
+  const tableRun = (side, dx, lane, target) => {
+    const x = side * table.legX + dx;
+    const legBack = table.legZ - 0.035;
+    const onTop = table.y + 0.006;
+    return [
+      ...leave(side),
       v(x, DUCT_Y, ductZ),
-      v(x, DUCT_Y, table.z - 0.04),
-      v(x, table.y + 0.01, table.z - 0.04),
-      v(x, table.y + 0.01, target.z),
+      v(x, DUCT_Y, legBack),
+      v(x, table.y - 0.08, legBack), // sobe pela perna
+      v(x, table.y - 0.08, table.z - 0.025), // sai para fora da borda
+      v(x, onTop, table.z - 0.025), // sobe pela borda
+      v(x, onTop, table.z + lane), // deita no tampo
+      v(target.x, onTop, table.z + lane), // corre junto da borda de trás
+      v(target.x, onTop, target.z),
       target,
-    );
-    return pts;
+    ];
   };
-  geos.power.push(wire(tableRun(pump.x, pump)));
+  geos.power.push(wire(tableRun(Math.sign(pump.x) || -1, 0, 0.025, pump)));
 
   // Sensor de proximidade: uma base pequena no tampo, embaixo da "bolinha".
   const proxBase = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.025, 0.03), new THREE.MeshStandardMaterial({ color: 0x1e3a8a }));
   proxBase.position.set(proximity.x, table.y + 0.0125, proximity.z);
   scene.add(proxBase);
-  geos.sensor.push(wire(tableRun(proximity.x, v(proximity.x, table.y + 0.01, proximity.z + 0.02))));
+  geos.sensor.push(wire(tableRun(1, 0, 0.025, v(proximity.x, table.y + 0.006, proximity.z - 0.015))));
 
   // Conector do sensor de umidade na borda de trás da mesa (o fio móvel parte daqui).
   const probeX = 0.2;
   const connector = v(probeX, table.y + 0.012, table.z + 0.05);
-  geos.sensor.push(wire(tableRun(probeX, connector)));
+  geos.sensor.push(wire(tableRun(1, -0.014, 0.04, v(probeX, table.y + 0.006, table.z + 0.05))));
   const plug = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.03), new THREE.MeshStandardMaterial({ color: 0x111827 }));
   plug.position.copy(connector).setY(table.y + 0.01);
   scene.add(plug);
 
   // Canaleta cinza no chão, junto da parede, cobrindo os fios.
-  const xs = benches.map((b) => Math.max(Math.abs(b.board.x), Math.abs(b.motor.x)));
+  const xs = benches.map((b) => Math.max(Math.abs(b.relay[0].x), Math.abs(b.power[0].x)));
   const half = (xs.length ? Math.max(...xs) : 1) + 0.05;
   const duct = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 0.035, 0.07), new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.7 }));
   duct.position.set(0, FLOOR_Y + 0.012, ductZ);
@@ -196,23 +197,30 @@ export function createMainboard(scene, { wallZ, benches, pump, proximity, probe,
   scene.add(probeWire);
   const lastTop = new THREE.Vector3(Infinity, 0, 0);
   const top = new THREE.Vector3();
-  const curve = new THREE.CatmullRomCurve3([v(0, 0, 0), v(0, 0, 0), v(0, 0, 0), v(0, 0, 0), v(0, 0, 0)]);
+  const toConn = new THREE.Vector3(connector.x - pot.x, 0, connector.z - pot.z).normalize();
+  const rimAt = (r, y) => v(pot.x + toConn.x * r, y, pot.z + toConn.z * r);
 
   function updateProbeWire() {
     probe.updateWorldMatrix(true, false);
     top.set(0, probeTop, 0).applyMatrix4(probe.matrixWorld);
     if (top.distanceToSquared(lastTop) < 1e-6) return;
     lastTop.copy(top);
-    const p = curve.points;
-    p[0].copy(connector);
-    p[1].copy(connector).setY(connector.y + 0.03);
-    const len = connector.distanceTo(top);
-    p[2].lerpVectors(connector, top, 0.5);
-    p[2].y = Math.max(table.y + 0.01, Math.min(connector.y, top.y) + 0.02 - len * 0.15); // barriga
-    p[3].copy(top).setY(top.y + 0.04);
-    p[4].copy(top);
+    const pts = [connector.clone(), connector.clone().setY(connector.y + 0.02)];
+    const inPot = Math.hypot(top.x - pot.x, top.z - pot.z) < pot.radius + 0.03 && top.y > pot.rimY - 0.15;
+    if (inPot) {
+      // Sensor no vaso: o fio sobe por fora, passa por cima da borda e desce até o sensor.
+      pts.push(rimAt(pot.radius + 0.03, pot.rimY - 0.02), rimAt(pot.radius + 0.005, pot.rimY + 0.03));
+      pts.push(top.clone().setY(Math.max(top.y, pot.rimY) + 0.045));
+    } else {
+      // Fora do vaso (na mão ou na mesa): curva com "barriga".
+      const len = connector.distanceTo(top);
+      const mid = new THREE.Vector3().lerpVectors(connector, top, 0.5);
+      mid.y = Math.max(table.y + 0.01, Math.min(connector.y, top.y) + 0.02 - len * 0.15);
+      pts.push(mid, top.clone().setY(top.y + 0.04));
+    }
+    pts.push(top.clone());
     probeWire.geometry.dispose();
-    probeWire.geometry = new THREE.TubeGeometry(curve, 24, 0.0035, 5, false);
+    probeWire.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 28, 0.0035, 5, false);
   }
   updateProbeWire();
 

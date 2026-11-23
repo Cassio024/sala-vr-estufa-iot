@@ -35,11 +35,12 @@ import { createPost } from './postfx.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
-import { createBenchIrrigation } from './scene/bench-irrigation.js';
+import { createBenchIrrigation, SCALE_TOP } from './scene/bench-irrigation.js';
 import { ControlPanel } from './ui/control-panel.js';
 import { buildAnalysisStraps } from './scene/analysis.js';
 import { SOIL_Y, POT_RIM, SAUCER } from './scene/plant.js';
 import { createMainboard } from './scene/mainboard.js';
+import { buildPerimeterFence, FENCE } from './scene/fence.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
@@ -172,6 +173,7 @@ const dust = quality.low ? null : buildDust(scene);
 // Jardim (flores, arbustos, cerca) e plantas nas bancadas: nos dois modos.
 // O jardim é desenhado com InstancedMesh (uma draw call por tipo de planta); no modo
 // leve (Quest) vão metade das cópias.
+buildPerimeterFence(scene); // cerca de madeira no limite do mapa (nos dois modos)
 buildGarden(scene, { density: quality.low ? 0.5 : 1 })
   .catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
 
@@ -185,6 +187,7 @@ const post = quality.low ? null : createPost(renderer, scene, camera);
 const startMoisture = Number(new URLSearchParams(location.search).get('umidade'));
 const soilSensor = new SoilMoistureSensor({
   initial: Number.isFinite(startMoisture) && startMoisture > 0 ? Math.min(100, startMoisture) : 55,
+  evaporationPerSec: 0.5, // seca devagar (antes: 1,2 %/s)
 });
 const irrigation = new IrrigationController();
 
@@ -200,7 +203,8 @@ const waterClick = sound.create(dev.waterButton, sound.buffers.click, { volume: 
 const grabbables = [dev.can, dev.probe];
 const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, grabbables });
 // Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
-buildGreenhousePlants(scene, room.benchSpots)
+// Cada vaso começa em cima da sua balança de segurança.
+buildGreenhousePlants(scene, room.benchSpots.map((s) => ({ ...s, y: SCALE_TOP })))
   .then((objs) => benchIrrigation.setPotObjects(objs))
   .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
 
@@ -221,7 +225,8 @@ const mainboard = createMainboard(scene, {
   proximity: dev.proxCore.position,
   probe: dev.probe,
   probeTop: dev.probe.userData.baseOffset,
-  table: { y: TABLE_Y, z: TABLE_Z - 0.35 },
+  table: { y: TABLE_Y, z: TABLE_Z - 0.35, legX: 0.6, legZ: TABLE_Z - 0.3 },
+  pot: { x: 0, z: TABLE_Z, rimY: TABLE_Y + POT_RIM.height, radius: POT_RIM.radius },
 });
 
 // Clique/gatilho em "interfaces": painel das bancadas, depois placas e porta da entrada.
@@ -292,7 +297,8 @@ function snapProbeToPot(obj) {
 const WORLD = {
   half: GREENHOUSE_SIZE / 2,
   doorHalfWidth: 0.6,
-  limit: 36,
+  // Limite do mapa: a cerca em volta do jardim (x = ±22, z = ±20); o jogador para antes dela.
+  bounds: { minX: -FENCE.x + 0.4, maxX: FENCE.x - 0.4, minZ: -FENCE.z + 0.4, maxZ: FENCE.z - 0.4 },
   boxes: [
     { x: 0, z: TABLE_Z, hw: 0.7, hd: 0.35 }, // mesa
     { x: -1.15, z: TABLE_Z, hw: 0.22, hd: 0.22 }, // reservatório

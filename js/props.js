@@ -144,29 +144,7 @@ export function buildGarden(scene, { density = 1 } = {}) {
     // Vasos com plantas na entrada.
     placeProp(scene, 'potted_plant_01', -1.6, 5.3, { height: 0.75 }),
     placeProp(scene, 'potted_plant_01', 1.6, 5.3, { height: 0.75, rotY: 1 }),
-    // Cerca de tela em volta do jardim.
-    buildFence(scene, 'modular_chainlink_fence', { from: { x: -22, z: -20 }, to: { x: 22, z: -20 } }),
-    buildFence(scene, 'modular_chainlink_fence', { from: { x: -22, z: -20 }, to: { x: -22, z: 20 } }),
-    buildFence(scene, 'modular_chainlink_fence', { from: { x: 22, z: -20 }, to: { x: 22, z: 20 } }),
+    // (A cerca em volta do mapa é feita em scene/fence.js.)
   ];
   return Promise.all(jobs);
-}
-
-// Cerca em linha: repete o módulo ao longo de um segmento (todas as peças num InstancedMesh).
-export async function buildFence(scene, name, { from, to, height = 1.2 }) {
-  const base = await load(name);
-  const size = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3());
-  const segLen = size.x * (height / Math.max(size.y, 0.001));
-  const dx = to.x - from.x;
-  const dz = to.z - from.z;
-  const n = Math.ceil(Math.hypot(dx, dz) / segLen);
-  // Rotação em Y que alinha o eixo X do módulo com o segmento from→to.
-  const rotY = -Math.atan2(dz, dx);
-  const spots = [];
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    spots.push({ x: from.x + dx * t, z: from.z + dz * t, height, rotY });
-  }
-  await instanceProp(scene, name, spots, { castShadow: true });
-  return n;
 }

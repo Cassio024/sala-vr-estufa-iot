@@ -96,7 +96,10 @@ export class ControlPanel {
   waterNow() {
     let n = 0;
     for (const g of this.selectedGroups()) n += this.network.waterNow(g);
-    this.event(n ? `Bancadas (${this.selection.label}): regando ${n} vaso(s)` : 'Regar agora: mude a seleção para Manual');
+    const anyManual = this.selectedGroups().some((g) => this.network.modes[g] === 'manual');
+    this.event(n ? `Bancadas (${this.selection.label}): regando ${n} vaso(s)`
+      : anyManual ? 'Regar agora: nenhum vaso liberado em cima da balança'
+      : 'Regar agora: mude a seleção para Manual');
   }
 
   releaseAll() {

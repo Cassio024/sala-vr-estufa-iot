@@ -1,7 +1,7 @@
 // Testes da irrigação das bancadas: válvulas solenoides, modos, bloqueio e motor.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ValveNetwork, MANUAL_SECONDS } from '../js/valves.js';
+import { ValveNetwork, MANUAL_SECONDS, EVAPORATION_MIN } from '../js/valves.js';
 
 // Gerador previsível: sempre o mesmo número.
 const fixed = (v) => () => v;
@@ -12,9 +12,9 @@ const run = (net, seconds, dt = 0.1) => {
 };
 
 test('automático: válvula abre quando a terra seca (< 35%) e fecha ao chegar em 70%', () => {
-  const net = new ValveNetwork([0], { random: fixed(0) }); // começa em 40%, seca 0,8%/s
+  const net = new ValveNetwork([0], { random: fixed(0) }); // começa em 40%, seca 0,3%/s
   let openedAt = null;
-  for (let i = 0; i < 200 && openedAt === null; i++) {
+  for (let i = 0; i < 400 && openedAt === null; i++) {
     if (net.update(0.1).includes(0)) openedAt = net.moistureAt(0);
   }
   assert.ok(openedAt !== null, 'abriu');
@@ -26,7 +26,23 @@ test('automático: válvula abre quando a terra seca (< 35%) e fecha ao chegar e
 
 test('bipe só no momento em que a válvula abre (não a cada quadro)', () => {
   const net = new ValveNetwork([0], { random: fixed(0) });
-  assert.equal(run(net, 15), 1);
+  assert.equal(run(net, 25), 1);
+});
+
+test('terra das bancadas seca devagar (0,3 a 0,6 %/s)', () => {
+  const slow = new ValveNetwork([0], { random: fixed(0) });
+  const fast = new ValveNetwork([0], { random: fixed(0.999) });
+  assert.equal(slow.pots[0].sensor.evaporationPerSec, EVAPORATION_MIN);
+  assert.ok(fast.pots[0].sensor.evaporationPerSec < EVAPORATION_MIN * 2 + 1e-9);
+});
+
+test('balança de segurança: sem vaso em cima, nem o "Regar agora" abre a válvula', () => {
+  const net = new ValveNetwork([0, 0], { random: fixed(0.9) });
+  net.setMode(0, 'manual');
+  net.setPot(1, null); // vaso tirado da balança 1
+  assert.equal(net.waterNow(0), 1, 'só a válvula com vaso');
+  net.update(0.1);
+  assert.deepEqual(net.valves.map((v) => v.open), [true, false]);
 });
 
 test('motor da bancada liga com qualquer válvula dela aberta, e só a da bancada certa', () => {

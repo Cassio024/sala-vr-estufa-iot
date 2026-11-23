@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { DOOR_W, DOOR_H, pbrMaterial } from './environment.js';
+import { FENCE } from './scene/fence.js';
+
+// Limite do mapa: um pouco antes da cerca em volta do jardim (scene/fence.js).
+const MAP_BOUNDS = { x: FENCE.x - 0.4, z: FENCE.z - 0.4 };
 
 // ---------------------------------------------------------------------------
 // Caminho de entrada: o jogador começa do lado de fora, anda por um caminho
@@ -355,8 +359,9 @@ export class Intro {
     if (canWalk) {
       const ground = raycaster.intersectObjects(this.walkables, false)[0];
       if (ground) {
-        const x = THREE.MathUtils.clamp(ground.point.x, -36, 36);
-        const z = THREE.MathUtils.clamp(ground.point.z, -36, 36);
+        // Não deixa andar para fora da cerca que cerca o mapa.
+        const x = THREE.MathUtils.clamp(ground.point.x, -MAP_BOUNDS.x, MAP_BOUNDS.x);
+        const z = THREE.MathUtils.clamp(ground.point.z, -MAP_BOUNDS.z, MAP_BOUNDS.z);
         this.walkTo(x, z);
         return true;
       }

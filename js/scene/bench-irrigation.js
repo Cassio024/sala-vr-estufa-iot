@@ -9,12 +9,18 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ValveNetwork } from '../valves.js';
-import { BENCH_TOP_Y } from './surfaces.js';
+import { BENCH_TOP_Y, setScalePads } from './surfaces.js';
 
 const TOP_Y = 0.8; // tampo das bancadas (ver environment.js > buildBenches)
 const MAIN_Y = TOP_Y + 0.06; // cano principal, na borda de trás da bancada
-const ELBOW_Y = TOP_Y + 0.32; // curva que leva a água por cima do vaso
-const POT_SOIL_Y = BENCH_TOP_Y + 0.1; // onde as gotas somem quando há vaso embaixo do bico
+const ELBOW_Y = TOP_Y + 0.38; // curva que leva a água por cima do vaso
+// Balança de segurança embaixo de cada vaso: a válvula só abre com um vaso em cima dela.
+export const SCALE_H = 0.024;
+export const SCALE_TOP = BENCH_TOP_Y + SCALE_H; // onde a base dos vasos fica
+const SCALE_HALF = 0.085;
+const CABLE_Y = BENCH_TOP_Y + 0.005; // cabos deitados no tampo
+const BOARD_Z = -3.33; // placa de relés na ponta da bancada (atrás do motor)
+const POT_SOIL_Y = SCALE_TOP + 0.1; // onde as gotas somem quando há vaso embaixo do bico
 const SLOT_RADIUS = 0.12; // vaso a até 12 cm do lugar dele ainda recebe a água do bico
 const MOTOR_Z = -3.12; // motor na ponta da bancada (o primeiro vaso fica em z = -2,6)
 
@@ -30,23 +36,6 @@ function pipe(points, radius) {
     path.add(new THREE.LineCurve3(new THREE.Vector3(...points[i]), new THREE.Vector3(...points[i + 1])));
   }
   return new THREE.TubeGeometry(path, points.length * 6, radius, 8, false);
-}
-
-function labelTexture(text, w = 256, h = 64, bg = '#0f3d2e', fg = '#d1fae5') {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const g = c.getContext('2d');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = fg;
-  g.font = `bold ${Math.round(h * 0.45)}px sans-serif`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, w / 2, h / 2);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 // Placa explicativa: válvula solenoide -> relé -> placa (ESP32).
@@ -106,8 +95,10 @@ function buildSign(scene, x, z, rotY) {
   });
   g.font = '25px sans-serif';
   g.fillStyle = '#94a3b8';
-  g.fillText('O motor bombeia a água da caixa d\'água (em cima dele) para o cano.', 40, 625);
-  g.fillText('Ele só liga quando alguma válvula da bancada está aberta.', 40, 662);
+  g.font = '23px sans-serif';
+  g.fillText('BALANÇA DE SEGURANÇA embaixo de cada vaso: sem vaso em cima, a válvula não abre.', 40, 615);
+  g.fillText('SENSOR DE UMIDADE espetado no vaso: o fio amarelo liga na balança e vai até a placa.', 40, 650);
+  g.fillText('O motor bombeia a água da caixa d\'água (em cima dele) só com alguma válvula aberta.', 40, 685);
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -134,10 +125,9 @@ function buildSign(scene, x, z, rotY) {
  * @param {{x:number,z:number}[]} spots posições dos vasos das bancadas (room.benchSpots)
  * @param {object} o
  * @param {import('../audio.js').SoundManager} o.sound
- * @param {boolean} o.low modo leve: sem modelos de planta nas bancadas, então põe vasos simples
  * @param {THREE.Object3D[]} o.grabbables lista de objetos pegáveis (PC e VR): os vasos entram nela
  */
-export function createBenchIrrigation(scene, spots, { sound, low = false, grabbables = [] }) {
+export function createBenchIrrigation(scene, spots, { sound, grabbables = [] }) {
   const sides = [-1, 1]
     .map((s) => ({ s, pots: spots.filter((p) => Math.sign(p.x) === s).sort((a, b) => a.z - b.z) }))
     .filter((side) => side.pots.length);
@@ -146,17 +136,25 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
   const groups = [];
   const slots = []; // lugar original de cada vaso (um por válvula)
   const pipeGeos = [];
-  const cableGeos = [];
+  const cableGeos = []; // preto: relés -> válvulas
+  const sensorGeos = []; // amarelo: sensores de umidade (pelas balanças) -> placa
+  const scales = []; // centro de cada balança de segurança
 
   const motorMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, metalness: 0.6, roughness: 0.4 });
   const tankMat = new THREE.MeshStandardMaterial({ color: 0x1d5fbf, roughness: 0.55 });
   const lidMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.5 });
+  const boardMat = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 });
+  const relayMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.5 });
   const motors = [];
-  const wiring = []; // onde os fios da placa-mãe chegam: placa de relés e motor de cada bancada
+  // Por onde os fios da placa-mãe sobem em cada bancada (caminhos completos, do chão ao aparelho).
+  const wiring = [];
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
   sides.forEach(({ s, pots }, sideIndex) => {
     const bx = pots[0].x;
     const xm = bx + s * 0.27; // cano principal, do lado da parede
+    const xc = xm + s * 0.035; // cabo preto, junto do cano (lado da parede)
+    const xy = xm + s * 0.055; // cabo amarelo, junto da borda
     const mx = bx + s * 0.1; // motor
     const lastZ = pots[pots.length - 1].z;
 
@@ -178,51 +176,58 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
       motor.add(m);
     }
     motor.add(led);
-    const tankLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.18, 0.045),
-      new THREE.MeshBasicMaterial({ map: labelTexture("CAIXA D'ÁGUA", 256, 64, '#0c3a7a', '#e0f2fe') }),
-    );
-    tankLabel.position.set(-s * 0.137, 0.27, 0);
-    tankLabel.rotation.y = -s * Math.PI / 2;
-    motor.add(tankLabel);
-    motor.position.set(mx, TOP_Y + 0.025, MOTOR_Z);
+    motor.position.set(mx, BENCH_TOP_Y, MOTOR_Z);
     scene.add(motor);
     motors.push({ group: motor, led, hum: sound ? sound.create(motor, sound.buffers.hum, { loop: true, volume: 0.35, refDistance: 0.4 }) : null });
 
-    // Placa ESP32 + relés, perto do motor (no lado do corredor).
-    const board = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.03, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }),
-    );
-    board.position.set(bx - s * 0.2, TOP_Y + 0.04, MOTOR_Z);
-    const boardLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.13, 0.04),
-      new THREE.MeshBasicMaterial({ map: labelTexture('ESP32 + RELÉS') }),
-    );
-    boardLabel.rotation.x = -Math.PI / 2;
-    boardLabel.position.set(bx - s * 0.2, TOP_Y + 0.056, MOTOR_Z);
-    scene.add(board, boardLabel);
+    // Placa ESP32 + relés na ponta da bancada, atrás do motor (sem etiqueta: a placa
+    // explicativa perto da porta conta o que é cada peça).
+    const boardX = bx - s * 0.15;
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.08), boardMat);
+    board.position.set(boardX, BENCH_TOP_Y + 0.01, BOARD_Z);
+    const relays = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 0.05), relayMat);
+    relays.position.set(boardX + s * 0.01, BENCH_TOP_Y + 0.032, BOARD_Z);
+    board.castShadow = relays.castShadow = true;
+    scene.add(board, relays);
+    const boardWall = boardX + s * 0.06; // face da placa virada para a parede
+
+    // Fios da placa-mãe: correm no chão até a perna de trás (lado do corredor), sobem
+    // por ela, contornam a borda do tampo e chegam na placa e no motor.
+    const legX = bx - s * 0.3;
+    const legBackZ = -3.3 - 0.033; // face de trás da perna
+    const climb = (dx, endPts) => [
+      V(legX + dx, 0.02, legBackZ), // no chão, atrás da perna
+      V(legX + dx, BENCH_TOP_Y - 0.06, legBackZ), // sobe pela perna
+      V(legX + dx, BENCH_TOP_Y - 0.06, -3.42), // sai para fora da ponta do tampo
+      V(legX + dx, CABLE_Y + 0.004, -3.42), // sobe pela borda
+      V(legX + dx, CABLE_Y + 0.004, -3.39), // deita no tampo
+      ...endPts,
+    ];
     wiring.push({
-      board: new THREE.Vector3(bx - s * 0.2, TOP_Y + 0.04, MOTOR_Z - 0.05),
-      motor: new THREE.Vector3(mx, TOP_Y + 0.08, MOTOR_Z - 0.11),
+      relay: climb(0, [V(boardX - s * 0.02, CABLE_Y + 0.004, -3.39), V(boardX - s * 0.02, BENCH_TOP_Y + 0.01, BOARD_Z - 0.04)]),
+      power: climb(s * 0.014, [V(mx, CABLE_Y + 0.004, -3.39), V(mx, CABLE_Y + 0.004, MOTOR_Z - 0.11), V(mx, BENCH_TOP_Y + 0.04, MOTOR_Z - 0.11)]),
     });
 
     // Cano: saída do motor -> borda de trás da bancada -> ao longo dos vasos.
     pipeGeos.push(pipe([
-      [mx, TOP_Y + 0.1, MOTOR_Z + 0.11],
-      [mx, TOP_Y + 0.1, MOTOR_Z + 0.2],
+      [mx, BENCH_TOP_Y + 0.075, MOTOR_Z + 0.11],
+      [mx, BENCH_TOP_Y + 0.075, MOTOR_Z + 0.2],
       [xm, MAIN_Y, MOTOR_Z + 0.2],
       [xm, MAIN_Y, lastZ + 0.05],
     ], 0.013));
-    // Cabo da placa até as válvulas (corre junto do cano).
+    // Cabos da placa: saem pela face da parede e seguem junto do cano até o último vaso.
     cableGeos.push(pipe([
-      [bx - s * 0.2, TOP_Y + 0.05, MOTOR_Z + 0.05],
-      [bx - s * 0.2, TOP_Y + 0.03, MOTOR_Z + 0.3],
-      [xm - s * 0.03, TOP_Y + 0.03, MOTOR_Z + 0.3],
-      [xm - s * 0.03, TOP_Y + 0.03, lastZ],
-    ], 0.004));
+      [boardWall, CABLE_Y, BOARD_Z + 0.02],
+      [xc, CABLE_Y, BOARD_Z + 0.02],
+      [xc, CABLE_Y, lastZ],
+    ], 0.0035));
+    sensorGeos.push(pipe([
+      [boardWall, CABLE_Y, BOARD_Z - 0.02],
+      [xy, CABLE_Y, BOARD_Z - 0.02],
+      [xy, CABLE_Y, lastZ + 0.05],
+    ], 0.0035));
 
-    // Uma derivação por vaso, com a válvula na curva.
+    // Uma derivação por vaso, com a válvula na curva e a balança embaixo do vaso.
     for (const p of pots) {
       const nozX = p.x + s * 0.05;
       pipeGeos.push(pipe([
@@ -231,10 +236,18 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
         [nozX, ELBOW_Y, p.z],
         [nozX, ELBOW_Y - 0.06, p.z],
       ], 0.008));
+      // Cabo preto colado no cano que sobe até a válvula.
       cableGeos.push(pipe([
-        [xm - s * 0.03, TOP_Y + 0.03, p.z],
-        [xm - s * 0.03, ELBOW_Y - 0.09, p.z],
-      ], 0.004));
+        [xc, CABLE_Y, p.z],
+        [xm + s * 0.016, CABLE_Y + 0.01, p.z],
+        [xm + s * 0.016, ELBOW_Y - 0.095, p.z],
+      ], 0.0035));
+      // Cabo amarelo do cabo principal até a balança (o sensor do vaso liga nela).
+      sensorGeos.push(pipe([
+        [xy, CABLE_Y, p.z + 0.05],
+        [p.x + s * SCALE_HALF, CABLE_Y, p.z + 0.05],
+      ], 0.003));
+      scales.push({ x: p.x, z: p.z, side: s });
       valvePos.push(new THREE.Vector3(xm, ELBOW_Y - 0.06, p.z));
       nozzles.push({ pos: new THREE.Vector3(nozX, ELBOW_Y - 0.07, p.z), side: s });
       groups.push(sideIndex);
@@ -242,10 +255,38 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     }
   });
 
+  // Balanças de segurança: base escura + prato de inox + LED (verde = vaso em cima).
+  const scaleBase = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(SCALE_HALF * 2, 0.014, SCALE_HALF * 2),
+    new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 }), scales.length);
+  const scalePlate = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(SCALE_HALF * 2 - 0.02, 0.01, SCALE_HALF * 2 - 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8, roughness: 0.3 }), scales.length);
+  const scaleLeds = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0055, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), scales.length);
+  {
+    const d = new THREE.Object3D();
+    scales.forEach((sc, i) => {
+      d.position.set(sc.x, BENCH_TOP_Y + 0.007, sc.z);
+      d.updateMatrix();
+      scaleBase.setMatrixAt(i, d.matrix);
+      d.position.set(sc.x, BENCH_TOP_Y + 0.019, sc.z);
+      d.updateMatrix();
+      scalePlate.setMatrixAt(i, d.matrix);
+      d.position.set(sc.x - sc.side * (SCALE_HALF + 0.001), BENCH_TOP_Y + 0.007, sc.z + 0.05);
+      d.updateMatrix();
+      scaleLeds.setMatrixAt(i, d.matrix);
+      scaleLeds.setColorAt(i, LED_RED_ON); // vermelho até o vaso pousar
+    });
+  }
+  scaleBase.receiveShadow = scalePlate.receiveShadow = true;
+  scene.add(scaleBase, scalePlate, scaleLeds);
+  setScalePads(scales.map((sc) => ({ x: sc.x, z: sc.z, half: SCALE_HALF, y: SCALE_TOP })));
+
   const pipeMesh = new THREE.Mesh(mergeGeometries(pipeGeos), new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.35, metalness: 0.1 }));
   pipeMesh.castShadow = true;
   const cableMesh = new THREE.Mesh(mergeGeometries(cableGeos), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }));
-  scene.add(pipeMesh, cableMesh);
+  const sensorMesh = new THREE.Mesh(mergeGeometries(sensorGeos), new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.7 }));
+  scene.add(pipeMesh, cableMesh, sensorMesh);
 
   // Válvulas solenoides (caixinhas) e LEDs: InstancedMesh.
   const n = valvePos.length;
@@ -295,29 +336,6 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     grabbables.push(obj);
   };
 
-  // Modo leve: as plantas das bancadas não são carregadas, então cada vaso é um
-  // "proxy" invisível (para pegar e cair) desenhado por um único InstancedMesh.
-  let potInstances = null;
-  if (low) {
-    potInstances = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.07, 0.05, 0.12, 16),
-      new THREE.MeshStandardMaterial({ color: 0xb5562b, roughness: 0.85 }),
-      slots.length,
-    );
-    potInstances.frustumCulled = false;
-    const hitGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.14, 8);
-    hitGeo.translate(0, 0.07, 0);
-    for (const slot of slots) {
-      const proxy = new THREE.Group();
-      const hit = new THREE.Mesh(hitGeo, new THREE.MeshBasicMaterial());
-      hit.visible = false; // só para a mira/raio acertar o vaso
-      proxy.add(hit);
-      proxy.position.set(slot.x, BENCH_TOP_Y, slot.z);
-      scene.add(proxy);
-      makeGrabbable(proxy, 0);
-    }
-    scene.add(potInstances);
-  }
   // Tampos invisíveis das bancadas: só para a mira do modo FPS saber onde soltar objetos.
   const dropSurfaces = sides.map(({ pots }) => {
     const top = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.02, 6.8), new THREE.MeshBasicMaterial());
@@ -327,20 +345,64 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     return top;
   });
 
-  const potOffset = new THREE.Matrix4().makeTranslation(0, 0.06, 0);
-  const tmpM = new THREE.Matrix4();
   const tmpV = new THREE.Vector3();
 
   /** Modo completo: recebe os modelos das plantas (props.js) e torna cada um pegável. */
   function setPotObjects(objects) {
-    if (low) return;
-    objects.forEach((obj) => {
+    objects.forEach((obj, i) => {
       if (!obj) return;
       obj.updateMatrixWorld(true);
-      // Distância da origem do modelo até a base dele (para pousar certo na bancada).
-      const minY = new THREE.Box3().setFromObject(obj).min.y;
-      makeGrabbable(obj, obj.position.y - minY);
+      // Distância da origem do modelo até a base dele (para pousar certo na balança).
+      const box = new THREE.Box3().setFromObject(obj);
+      makeGrabbable(obj, obj.position.y - box.min.y);
+      addPotSensor(obj, box, slots[i] ? Math.sign(slots[i].x) || 1 : 1);
     });
+  }
+
+  // Sensor de umidade do vaso: haste espetada na terra com um LED, e o fio amarelo
+  // que passa por cima da borda, desce pelo lado de fora do vaso e encaixa na
+  // balança (é por ela que a leitura chega na placa). Fica preso ao vaso: se o vaso
+  // for pego, o sensor vai junto; fora da balança, a placa não recebe a leitura.
+  const sensorMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
+  function colored(geo, hex) {
+    const c = new THREE.Color(hex);
+    const n = geo.attributes.position.count;
+    const arr = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) c.toArray(arr, k * 3);
+    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return geo.index ? geo.toNonIndexed() : geo;
+  }
+  function addPotSensor(obj, box, side) {
+    const H = box.max.y - box.min.y;
+    const base = box.min.y;
+    // Proporções do modelo "Potted Plant 01": terra a ~40% da altura, boca do vaso ~17% de raio.
+    const soilY = base + H * 0.4;
+    const R = H * 0.17;
+    const c = obj.getWorldPosition(new THREE.Vector3()); // centro do vaso (origem do modelo)
+    const dir = new THREE.Vector3(-side * 0.8, 0, 0.6).normalize(); // virado para o corredor
+    const at = (r, y) => new THREE.Vector3(c.x + dir.x * r, y, c.z + dir.z * r);
+    const stickTop = at(R * 0.55, soilY + 0.06);
+    const stick = new THREE.CylinderGeometry(0.004, 0.004, 0.09, 6);
+    stick.translate(stickTop.x, stickTop.y - 0.045, stickTop.z);
+    const head = new THREE.BoxGeometry(0.014, 0.018, 0.014);
+    head.translate(stickTop.x, stickTop.y, stickTop.z);
+    const led = new THREE.SphereGeometry(0.004, 6, 4);
+    led.translate(stickTop.x, stickTop.y + 0.011, stickTop.z);
+    const wire = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      stickTop.clone().setY(stickTop.y + 0.005),
+      at(R * 0.8, soilY + 0.05),
+      at(R * 1.08, soilY + 0.02), // por cima da borda
+      at(R * 1.04, soilY - 0.05),
+      at(R * 0.8, base + 0.02), // desce pela parede de fora
+      at(R * 0.86, base + 0.003), // encaixa na balança
+    ]), 24, 0.0022, 5, false);
+    const geo = mergeGeometries([
+      colored(stick, 0x9ca3af), colored(head, 0x1f2937), colored(led, 0x22c55e), colored(wire, 0xfacc15),
+    ]);
+    const mesh = new THREE.Mesh(geo, sensorMat);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    obj.attach(mesh); // passa a ser filho do vaso (mantém a posição no mundo)
   }
 
   // Gotas (InstancedMesh com pool fixo).
@@ -372,9 +434,13 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
         if (found !== null || u.held || u.falling) return;
         obj.getWorldPosition(tmpV);
         const baseY = tmpV.y - u.baseOffset;
-        if (Math.hypot(tmpV.x - slot.x, tmpV.z - slot.z) < SLOT_RADIUS && Math.abs(baseY - BENCH_TOP_Y) < 0.08) found = j;
+        if (Math.hypot(tmpV.x - slot.x, tmpV.z - slot.z) < SLOT_RADIUS && Math.abs(baseY - SCALE_TOP) < 0.03) found = j; // em cima da balança
       });
-      if (network.valves[i].pot !== found) network.setPot(i, found);
+      if (network.valves[i].pot !== found) {
+        network.setPot(i, found);
+        scaleLeds.setColorAt(i, found === null ? LED_RED_ON : LED_GREEN_ON); // LED da balança
+        scaleLeds.instanceColor.needsUpdate = true;
+      }
     });
   }
 
@@ -429,14 +495,6 @@ export function createBenchIrrigation(scene, spots, { sound, low = false, grabba
     });
     dropMesh.instanceMatrix.needsUpdate = true;
 
-    // Modo leve: desenha cada vaso onde o proxy dele está (inclusive na mão do jogador).
-    if (potInstances) {
-      potObjects.forEach((obj, j) => {
-        obj.updateWorldMatrix(true, false);
-        potInstances.setMatrixAt(j, tmpM.multiplyMatrices(obj.matrixWorld, potOffset));
-      });
-      potInstances.instanceMatrix.needsUpdate = true;
-    }
   }
 
   return { network, slots, update, setPotObjects, dropSurfaces, wiring };

@@ -21,9 +21,11 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
 | Painel das bancadas (perto da porta, à direita) | Escolha **Todas / Esquerda / Direita**, o modo **Automático / Manual**, **💧 Regar agora** (no manual) e **Liberar todos**. A grade mostra os 16 vasos (umidade e estado); **clique num vaso para bloquear ("não regar") ou liberar** a rega dele. Funciona com mouse, mira do modo FPS e raio do controle VR. |
 | Placa-mãe (fundo da estufa, na parede) | Caixa do ESP32 que recebe todos os fios: **preto** = sinal dos relés, **vermelho** = força das bombas (motores das bancadas e bomba da mesa), **amarelo** = sensores (umidade e proximidade). Os LEDs mostram energia, o programa rodando (pisca) e cada bomba ligada. O fio do sensor de umidade acompanha o sensor quando ele é pego. |
-| Vasos das bancadas | Podem ser **pegos e movidos** (PC: modo FPS · VR: gatilho lateral). Soltos, caem e pousam na bancada, na mesa ou no chão. A válvula só rega o vaso que está embaixo do bico dela: tirou o vaso do lugar, ela não rega mais ali. |
+| Vasos das bancadas | Podem ser **pegos e movidos** (PC: modo FPS · VR: gatilho lateral). Soltos, caem e pousam na balança, na bancada, na mesa ou no chão. Cada vaso tem um **sensor de umidade** espetado na terra, com o fio amarelo descendo por fora do vaso até a balança. A terra seca devagar (0,3 a 0,6 % por segundo). |
+| Balança de segurança (embaixo de cada vaso) | A válvula só abre com um vaso **em cima da balança** (nem o "Regar agora" abre sem vaso). LED da balança: **verde** = vaso detectado, **vermelho** = vazia. Tirou o vaso, o painel mostra "vazio" e a água não cai na bancada. |
 | Vaso principal (mesa) | **Planta em análise**: preso à mesa com fitas zebradas e uma etiqueta — não pode ser pego. |
-| Irrigação das bancadas | Em cada bancada: motor com **caixa d'água** em cima, placa **ESP32 + relés** e um cano até cada vaso. Em cada curva, uma **válvula solenoide** com luz **vermelha** (fechada) e **verde** (regando) e um **bipe** ao abrir. Cada vaso tem seu sensor: abre abaixo de 35% e fecha em 70%. Uma placa perto da bancada esquerda explica válvula → relé → placa. |
+| Irrigação das bancadas | Em cada bancada: motor com **caixa d'água** em cima, placa **ESP32 + relés** e um cano até cada vaso. Em cada curva, uma **válvula solenoide** com luz **vermelha** (fechada) e **verde** (regando) e um **bipe** ao abrir. Cada vaso tem seu sensor: abre abaixo de 35% e fecha em 70%. Os cabos correm junto do cano (preto = relés → válvulas, amarelo = sensores → balanças). As peças não têm etiqueta: a placa perto da bancada esquerda explica válvula → relé → placa, a balança e o sensor. |
+| Cerca de madeira (limite do mapa) | Cerca em volta do mapa inteiro (x = ±22 m, z = ±20 m). Andando (FPS, analógico da VR ou clique no chão) o jogador para antes dela e não sai do mapa. |
 
 ## Como jogar
 
@@ -114,7 +116,7 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 | Bomba glTF (150 mil tri) | sim | não — forma simples |
 | Árvores (InstancedMesh, 2 draw calls) | 70 | 40 |
 | Jardim: flores, arbustos, grama (InstancedMesh, 1 draw call por tipo) | todas as cópias | metade das cópias |
-| Cerca em volta do jardim (InstancedMesh) | sim | sim |
+| Cerca de madeira em volta do mapa (InstancedMesh, 2 draw calls) | sim | sim |
 | Plantas reais nas bancadas (16 vasos pegáveis) | sim | sim |
 | Nuvens, poeira e pós-processamento | sim | não |
 | Draw calls (vista de dentro da estufa, medido com `?debug`) | ~75 | ~52 |
@@ -157,7 +159,8 @@ vendor/three/          -> three.js 0.170.0 local (só os arquivos usados)
 js/main.js            -> ponto de entrada: junta os módulos e roda o loop principal
 js/sensors.js         -> lógica dos sensores, da bomba e do modo automático (sem three.js)
 js/scene/room.js      -> estufa, bancadas, luminária e mesa
-js/scene/plant.js     -> vaso, solo e planta (murcha quando o solo seca)
+js/scene/plant.js     -> vaso, solo e planta (murcha quando o solo seca, empoça quando encharca)
+js/scene/fence.js     -> cerca de madeira no limite do mapa
 js/scene/devices.js   -> sensor, regador, bomba, reservatório, botão de modo, proximidade
 js/scene/surfaces.js  -> onde objetos soltos e gotas pousam (chão, mesa, solo)
 js/scene/water.js     -> gotas de água
@@ -210,7 +213,7 @@ bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
 | Arquivo | Origem | Autor | Licença |
 |---|---|---|---|
 | `assets/models/bomba.glb` | [Water Pump — Sketchfab](https://sketchfab.com/3d-models/water-pump-76ca12fd7aec4748b96445892b1a5d95) | [OOtis_Pro](https://sketchfab.com/Mohit.Lodhi) | [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/) (exige crédito) |
-| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores, cerca) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay, modular_chainlink_fence | Poly Haven | CC0 (uso livre) |
+| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay | Poly Haven | CC0 (uso livre) |
 | `assets/textures/casca/*` | [bark_brown_02](https://polyhaven.com/a/bark_brown_02) | Poly Haven | CC0 |
 | `assets/textures/pedras/*` | [cobblestone_floor_02](https://polyhaven.com/a/cobblestone_floor_02) | Poly Haven | CC0 |
 | `assets/textures/grama/normal.jpg` | [grass_ground](https://polyhaven.com/a/grass_ground) (só o relevo; a cor é gerada por código) | Poly Haven | CC0 |

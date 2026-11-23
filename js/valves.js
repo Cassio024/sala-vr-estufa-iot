@@ -3,7 +3,9 @@
 // Cada bancada tem várias VÁLVULAS SOLENOIDES (uma por posição de vaso), cada uma
 // ligada a um RELÉ que a placa (ESP32) liga e desliga. Cada VASO tem o seu próprio
 // sensor de umidade. A válvula decide pelo vaso que está embaixo do bico dela —
-// se o vaso for tirado do lugar, ela fica sem leitura e não rega no automático.
+// se o vaso for tirado do lugar, ela fica sem leitura e não rega.
+// BALANÇA DE SEGURANÇA: embaixo de cada vaso há uma balança; sem vaso em cima dela
+// a válvula nunca abre (nem no automático, nem no "Regar agora").
 //
 // Modos por bancada (escolhidos no painel de controle):
 //   automático: terra abaixo de 35% -> válvula abre; chega a 70% -> fecha
@@ -13,6 +15,8 @@
 import { SoilMoistureSensor, IrrigationController } from './sensors.js';
 
 export const MANUAL_SECONDS = 4;
+// Quanto a terra de cada vaso seca por segundo (%/s): entre 0,3 e 0,6.
+export const EVAPORATION_MIN = 0.3;
 
 export class ValveNetwork {
   /**
@@ -34,7 +38,7 @@ export class ValveNetwork {
     // Cada vaso começa com uma umidade e seca num ritmo diferente: assim as
     // válvulas abrem em momentos diferentes, como numa estufa real.
     this.pots = Array.from({ length: potCount }, () => ({
-      sensor: new SoilMoistureSensor({ initial: 40 + random() * 45, evaporationPerSec: 0.8 + random() * 0.8 }),
+      sensor: new SoilMoistureSensor({ initial: 40 + random() * 45, evaporationPerSec: EVAPORATION_MIN + random() * EVAPORATION_MIN }),
     }));
     const groupCount = Math.max(-1, ...groups) + 1;
     this.motors = Array.from({ length: groupCount }, () => false);
@@ -76,7 +80,7 @@ export class ValveNetwork {
     if (this.modes[group] !== 'manual') return 0;
     let n = 0;
     for (const v of this.valves) {
-      if (v.group === group && v.enabled) {
+      if (v.group === group && v.enabled && v.pot !== null) { // balança vazia: não abre
         v.relay.requestManualWater();
         n++;
       }
@@ -91,8 +95,9 @@ export class ValveNetwork {
     this.motors.fill(false);
     this.valves.forEach((v, i) => {
       const wasOpen = v.open;
-      if (!v.enabled) {
-        // Bloqueada: o relé fica desligado, a válvula não abre.
+      if (!v.enabled || v.pot === null) {
+        // Bloqueada pelo painel, ou balança de segurança vazia (sem vaso):
+        // o relé fica desligado, a válvula não abre.
         v.relay.pumpOn = false;
         v.relay.manualTimer = 0;
         v.open = false;
