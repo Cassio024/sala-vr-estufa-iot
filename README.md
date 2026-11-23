@@ -69,6 +69,11 @@ Para usar no **Meta Quest** (ou outro headset), o jeito mais simples é publicar
 
 ## Abrir no headset (Meta Quest)
 
+**Acesso rápido:** aponte a câmera do headset para o QR code abaixo, ou abra o link `https://cassio024.github.io/sala-vr-estufa-iot/` no navegador dele.
+
+![QR code para a sala VR](docs/qr-vr.png)
+
+
 1. No Quest, abra o app **Navegador** (Meta Quest Browser).
 2. Digite `cassio024.github.io/sala-vr-estufa-iot` e espere a sala carregar.
 3. Toque em **ENTER VR** (botão embaixo da página) e permita o acesso à realidade virtual.
