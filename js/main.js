@@ -32,7 +32,6 @@ import { Intro } from './intro.js';
 import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
-import { createBody } from './corpo.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
@@ -286,8 +285,6 @@ const interaction = new XRInteraction({
 // Opção "andar ao clicar no chão" (PC). Começa desligada; o botão/tecla C liga.
 const clickWalk = createClickWalkOption();
 
-const body = createBody(scene, renderer, camera, interaction.controllers, orbit); // corpo: VR e PC
-
 setupDesktopInput({
   renderer,
   camera,
@@ -381,7 +378,6 @@ function render() {
   // 1) Sensor: a terra seca com o tempo; objetos soltos caem.
   soilSensor.update(dt);
   interaction.update(dt);
-  body.update();
 
   // 2) Regador: inclinado sobre o vaso, adiciona água ao solo.
   const pouring = dev.canIsPouring();
