@@ -9,6 +9,7 @@
 //   postfx.js         -> brilho e vinheta (só no PC)
 //   ui/panel.js       -> painel de status
 //   input.js          -> mouse e teclado (PC)  ·  interaction.js -> controles VR
+//   fps.js            -> modo FPS no PC (W A S D + mouse, tecla F)
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -28,6 +29,8 @@ import { Intro } from './intro.js';
 import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
+import { FirstPersonMode } from './fps.js';
+import { SOIL_Y } from './scene/plant.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
@@ -68,6 +71,7 @@ orbit.update();
 // Quem anda pela cena: no PC move a câmera; na VR move o "rig"
 // (o headset continua dando a posição da cabeça dentro dele).
 const _head = new THREE.Vector3();
+let fps = null; // modo FPS (criado mais abaixo, depois dos dispositivos)
 const viewer = {
   head() {
     return camera.getWorldPosition(_head.clone());
@@ -89,6 +93,10 @@ const viewer = {
   },
   lookAt(x, y, z) {
     if (renderer.xr.isPresenting) return;
+    if (fps && fps.active) {
+      fps.lookAt(x, y, z);
+      return;
+    }
     orbit.target.set(x, y, z);
     orbit.update();
   },
@@ -218,6 +226,37 @@ setupDesktopInput({
   onWater: () => irrigation.requestManualWater(),
   // Clique no PC: placas, porta e caminhar pelo chão vêm antes dos botões.
   onPick: (ray) => intro.handleRay(ray, { canWalk: true }),
+  isBusy: () => Boolean(fps && fps.active),
+});
+
+// Modo FPS (tecla F ou botão no canto): andar com W A S D e usar o mouse como num jogo.
+fps = new FirstPersonMode({
+  renderer,
+  camera,
+  scene,
+  orbit,
+  onIntroRay: (ray) => intro.handleRay(ray, { canWalk: false }),
+  modeTargets: [dev.modeButton, dev.modeLed],
+  waterTargets: [dev.proxCore, dev.proxHalo],
+  grabbables: [dev.can, dev.probe],
+  can: dev.can,
+  potCenter: { x: 0, y: SOIL_Y, z: TABLE_Z },
+  onToggleMode: toggleMode,
+  onWater: () => irrigation.requestManualWater(),
+  world: {
+    half: GREENHOUSE_SIZE / 2,
+    doorHalfWidth: 0.6,
+    limit: 36,
+    // Móveis que bloqueiam a passagem: mesa, reservatório e as duas bancadas.
+    boxes: [
+      { x: 0, z: TABLE_Z, hw: 0.7, hd: 0.35 },
+      { x: -1.15, z: TABLE_Z, hw: 0.22, hd: 0.22 },
+      { x: -(GREENHOUSE_SIZE / 2 - 0.7), z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 },
+      { x: GREENHOUSE_SIZE / 2 - 0.7, z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 },
+    ],
+    // Onde dá para soltar objetos.
+    dropSurfaces: [room.tableTop, plant.pot, room.greenhouse.floor, room.greenhouse.ground],
+  },
 });
 
 window.addEventListener('resize', () => {
@@ -235,13 +274,13 @@ let debugText = '';
 let xrInfo = null;
 if (quality.debug) checkXRSupport().then((info) => { xrInfo = info; });
 
-function updateDebugText(fps) {
+function updateDebugText(framesPerSec) {
   const r = renderer.info.render;
   const mode = renderer.xr.isPresenting ? 'VR' : 'PC';
   const xr = xrInfo
     ? `HTTPS:${xrInfo.secure ? 'sim' : 'NÃO'} WebXR:${xrInfo.webxr ? 'sim' : 'NÃO'} VR:${xrInfo.immersiveVR ? 'sim' : 'NÃO'}`
     : '';
-  debugText = `${mode} ${fps} FPS · ${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tri · ${quality.low ? 'leve' : 'completa'} · ${xr}`;
+  debugText = `${mode} ${framesPerSec} FPS · ${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tri · ${quality.low ? 'leve' : 'completa'} · ${xr}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +302,7 @@ function render() {
 
   // 0) Cenário vivo: caminhada, porta, vento, nuvens e poeira.
   intro.update(dt);
+  fps.update(dt);
   if (room.outdoor) room.outdoor.update(time);
   if (clouds) clouds.update(dt);
   if (dust) dust.update(time);
@@ -336,8 +376,8 @@ function render() {
   renderer.info.reset();
   if (post) post.render(dt);
   else renderer.render(scene, camera);
-  const fps = fpsMeter.update(dt);
-  if (quality.debug) updateDebugText(fps);
+  const framesPerSec = fpsMeter.update(dt);
+  if (quality.debug) updateDebugText(framesPerSec);
 }
 
 panel.draw({ moisture: soilSensor.read(), probeIn: true, pumpOn: false, mode: irrigation.mode, near: false, log: irrigation.log });

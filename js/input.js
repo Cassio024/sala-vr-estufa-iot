@@ -2,7 +2,7 @@
 // Os controles VR ficam em interaction.js.
 import * as THREE from 'three';
 
-export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets, onToggleMode, onWater, onPick = null }) {
+export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets, onToggleMode, onWater, onPick = null, isBusy = () => false }) {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let downX = 0;
@@ -15,6 +15,7 @@ export function setupDesktopInput({ renderer, camera, modeTargets, waterTargets,
 
   // Clicar no botão cinza troca o modo; clicar na esfera azul rega.
   renderer.domElement.addEventListener('pointerup', (e) => {
+    if (isBusy()) return; // modo FPS: os cliques são tratados em fps.js (mira no centro da tela)
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return; // foi um arrasto (girar a câmera)
     mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(mouse, camera);

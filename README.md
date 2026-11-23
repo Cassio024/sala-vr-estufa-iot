@@ -31,6 +31,22 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 - Clique na **esfera azul** para regar (rega manual).
 - Atalhos: `M` troca o modo, `Espaço` rega.
 
+**Modo FPS (como um jogo, no computador):** aperte **F** ou clique em **🎮 Modo FPS** (canto inferior esquerdo).
+O mouse fica preso na tela, como num jogo de tiro em primeira pessoa.
+
+| Comando | Ação |
+|---|---|
+| `W` `A` `S` `D` / setas | Andar |
+| `Shift` | Correr |
+| Mouse | Olhar em volta |
+| Clique esquerdo | Usar o que está na mira (botão cinza, esfera azul, placas, porta) · pegar o regador ou o sensor · soltar onde estiver mirando |
+| Botão direito (segurando o regador, mirando o vaso) | Regar |
+| `M` / `Espaço` | Modo auto/manual · rega manual |
+| `Esc` | Sair do modo FPS |
+
+Não dá para atravessar paredes, mesa, bancadas e reservatório; para entrar e sair da estufa, use a porta.
+Para espetar o sensor de volta no vaso, segure-o, mire no vaso e clique.
+
 ## Como rodar
 
 WebXR só funciona em **HTTPS** ou em `localhost`. Por isso:
@@ -124,6 +140,7 @@ js/scene/surfaces.js  -> onde objetos soltos e gotas pousam (chão, mesa, solo)
 js/scene/water.js     -> gotas de água
 js/ui/panel.js        -> painel de status
 js/input.js           -> mouse e teclado (PC)
+js/fps.js             -> modo FPS: W A S D, mouse preso, mira, pegar/soltar e regar
 js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
 js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa
 js/audio.js           -> sons espaciais gerados por código

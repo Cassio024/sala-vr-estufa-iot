@@ -29,5 +29,5 @@ export function buildRoom(scene, { shadowMapSize, low = false }) {
   }
 
   const outdoor = low ? null : buildOutdoorScenery(scene);
-  return { greenhouse, benchSpots, outdoor };
+  return { greenhouse, benchSpots, outdoor, tableTop };
 }
