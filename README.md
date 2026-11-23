@@ -148,6 +148,17 @@ A sala VR consome a telemetria publicada pelo firmware e envia comandos de
 bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
 `firmware/` no VS Code com a extensão Wokwi.
 
+## Créditos e licenças
+
+| Arquivo | Origem | Autor | Licença |
+|---|---|---|---|
+| `assets/models/bomba.glb` | [Water Pump — Sketchfab](https://sketchfab.com/3d-models/water-pump-76ca12fd7aec4748b96445892b1a5d95) | [OOtis_Pro](https://sketchfab.com/Mohit.Lodhi) | [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/) (exige crédito) |
+| `assets/models/planta.glb` | "Potted Plant 01" — provavelmente [Poly Haven](https://polyhaven.com/a/potted_plant_01) *(a confirmar)* | Poly Haven | CC0 *(a confirmar)* |
+| `assets/hdri/estufa.hdr` | *a confirmar com quem adicionou* | — | — |
+| `assets/textures/madeira/*`, `assets/textures/piso/*` | *a confirmar com quem adicionou* | — | — |
+
+Os dados da bomba vêm dos metadados do próprio arquivo glTF. Sons e texturas de reserva (quando os arquivos não carregam) são gerados por código neste projeto.
+
 ## Tecnologias
 
 - [three.js](https://threejs.org/) 0.170.0 (carregado pelo CDN jsDelivr)
