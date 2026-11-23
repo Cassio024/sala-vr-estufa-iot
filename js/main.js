@@ -2,21 +2,37 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SoilMoistureSensor, ProximitySensor, IrrigationController } from './sensors.js';
-import { setupRenderer, setupEnvironment, pbrMaterial, buildGreenhouse, buildBenches, buildLamp } from './environment.js';
+import { setupRenderer, setupEnvironment, pbrMaterial, buildGreenhouse, buildBenches, buildLamp, buildOutdoorScenery } from './environment.js';
 import { tryLoadModel, makeTintable, tint } from './models.js';
 import { SoundManager } from './audio.js';
 import { XRInteraction, haptic } from './interaction.js';
+import { Intro } from './intro.js';
+import { createPost } from './postfx.js';
+import { buildContactShadows, buildClouds, buildDust } from './effects.js';
+import { terracottaTextures, leafTextures, soilTexture } from './textures.js';
+import { buildGarden, buildGreenhousePlants } from './props.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
 // ---------------------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Resolução limitada a 1.5: acima disso o custo sobe rápido e a diferença visual é pequena.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 setupRenderer(renderer);
+// O sol não se move, então o mapa de sombra é recalculado só de tempos em tempos
+// (ver shadowTimer no loop). Isso economiza uma passagem de sombra por quadro.
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
 renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
-document.getElementById('app').appendChild(VRButton.createButton(renderer));
+// Só mostra o botão "Enter VR" se o navegador/headset suportar; sem isso o
+// VRButton aparece como "VR NOT SUPPORTED" no computador.
+if (navigator.xr) {
+  navigator.xr.isSessionSupported('immersive-vr').then((ok) => {
+    if (ok) document.getElementById('app').appendChild(VRButton.createButton(renderer));
+  });
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fc5e8);
@@ -31,15 +47,76 @@ rig.add(camera);
 
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 1.0, -1);
-orbit.maxDistance = 6;
+orbit.maxDistance = 12;
 orbit.update();
+
+// Quem anda pela cena: no computador move a câmera; na VR move o "rig"
+// (o headset continua dando a posição da cabeça dentro dele).
+const _head = new THREE.Vector3();
+const viewer = {
+  head() {
+    return camera.getWorldPosition(_head.clone());
+  },
+  isXR() {
+    return renderer.xr.isPresenting;
+  },
+  moveBy(dx, dz) {
+    if (renderer.xr.isPresenting) {
+      rig.position.x += dx;
+      rig.position.z += dz;
+    } else {
+      camera.position.x += dx;
+      camera.position.z += dz;
+      orbit.target.x += dx;
+      orbit.target.z += dz;
+      orbit.update();
+    }
+  },
+  lookAt(x, y, z) {
+    if (renderer.xr.isPresenting) return;
+    orbit.target.set(x, y, z);
+    orbit.update();
+  },
+};
+
+// Ao entrar na VR, a posição atual do computador vira a posição do rig;
+// ao sair, a câmera volta para onde o rig estava.
+renderer.xr.addEventListener('sessionstart', () => {
+  rig.position.x += camera.position.x;
+  rig.position.z += camera.position.z;
+  camera.position.x = 0;
+  camera.position.z = 0;
+});
+renderer.xr.addEventListener('sessionend', () => {
+  const x = rig.position.x;
+  const z = rig.position.z;
+  rig.position.set(0, 0, 0);
+  camera.position.x = x;
+  camera.position.z = z;
+  orbit.target.set(x, 1.2, z - 3);
+  orbit.update();
+});
 
 // ---------------------------------------------------------------------------
 // Estufa, bancadas e mesa
 // ---------------------------------------------------------------------------
 const GREENHOUSE_SIZE = 8;
 const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3 });
-buildBenches(scene, GREENHOUSE_SIZE);
+const benchSpots = buildBenches(scene, GREENHOUSE_SIZE);
+const treeSpots = buildOutdoorScenery(scene);
+
+// Caminho de entrada com placas explicativas (fora da estufa).
+const intro = new Intro({
+  scene,
+  camera,
+  viewer,
+  walkables: [greenhouse.ground, greenhouse.floor],
+  door: greenhouse.door,
+});
+intro.start();
+
+// Pós-processamento (bloom e vinheta) para o modo computador.
+const post = createPost(renderer, scene, camera);
 
 const TABLE_Y = 0.78;   // altura da superfície da mesa
 const TABLE_Z = -1;
@@ -65,7 +142,7 @@ for (const [x, dz] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) {
 const POT_HEIGHT = 0.2;
 const pot = new THREE.Mesh(
   new THREE.CylinderGeometry(0.13, 0.1, POT_HEIGHT, 32),
-  new THREE.MeshStandardMaterial({ color: 0xb5562b, roughness: 0.85 })
+  new THREE.MeshStandardMaterial({ map: terracottaTextures().map, roughness: 0.85 })
 );
 pot.position.set(0, TABLE_Y + POT_HEIGHT / 2, TABLE_Z);
 pot.castShadow = true;
@@ -74,7 +151,7 @@ scene.add(pot);
 const SOIL_Y = TABLE_Y + POT_HEIGHT + 0.001;
 const SOIL_DRY = new THREE.Color(0xc9a178);
 const SOIL_WET = new THREE.Color(0x3b2415);
-const soilMat = new THREE.MeshStandardMaterial({ color: SOIL_DRY, roughness: 1 });
+const soilMat = new THREE.MeshStandardMaterial({ color: SOIL_DRY, map: soilTexture().map, roughness: 1 });
 const soil = new THREE.Mesh(new THREE.CircleGeometry(0.125, 32), soilMat);
 soil.rotation.x = -Math.PI / 2;
 soil.position.set(0, SOIL_Y, TABLE_Z);
@@ -83,7 +160,7 @@ scene.add(soil);
 
 const LEAF_DRY = new THREE.Color(0xa3863a);
 const LEAF_HEALTHY = new THREE.Color(0x3f9b48);
-const leafMat = new THREE.MeshStandardMaterial({ color: LEAF_HEALTHY, roughness: 0.6 });
+const leafMat = new THREE.MeshStandardMaterial({ color: LEAF_HEALTHY, map: leafTextures().map, roughness: 0.6 });
 const plant = new THREE.Group();
 plant.position.set(0, SOIL_Y, TABLE_Z);
 scene.add(plant);
@@ -324,48 +401,107 @@ function updateDrops(dt, emitters) {
 // ---------------------------------------------------------------------------
 // Painel de status (canvas como textura)
 // ---------------------------------------------------------------------------
+const PANEL_W = 1024;
+const PANEL_H = 720;
 const panelCanvas = document.createElement('canvas');
-panelCanvas.width = 1024;
-panelCanvas.height = 640;
+panelCanvas.width = PANEL_W;
+panelCanvas.height = PANEL_H;
 const pctx = panelCanvas.getContext('2d');
 const panelTexture = new THREE.CanvasTexture(panelCanvas);
 panelTexture.colorSpace = THREE.SRGBColorSpace;
 const panel = new THREE.Mesh(
-  new THREE.PlaneGeometry(1.2, 0.75),
-  new THREE.MeshBasicMaterial({ map: panelTexture })
+  new THREE.PlaneGeometry(1.2, 1.2 * (PANEL_H / PANEL_W)),
+  new THREE.MeshBasicMaterial({ map: panelTexture, transparent: true })
 );
 panel.position.set(0, 1.5, TABLE_Z - 0.55);
 scene.add(panel);
 
+function roundRect(x, y, w, h, r) {
+  pctx.beginPath();
+  pctx.moveTo(x + r, y);
+  pctx.arcTo(x + w, y, x + w, y + h, r);
+  pctx.arcTo(x + w, y + h, x, y + h, r);
+  pctx.arcTo(x, y + h, x, y, r);
+  pctx.arcTo(x, y, x + w, y, r);
+  pctx.closePath();
+}
+
+// Cartão de status: rótulo pequeno em cima, valor em destaque embaixo.
+function drawPill(x, y, label, value, bg, fg) {
+  pctx.fillStyle = bg;
+  roundRect(x, y, 290, 96, 24);
+  pctx.fill();
+  pctx.fillStyle = fg;
+  pctx.font = '26px sans-serif';
+  pctx.fillText(label, x + 24, y + 36);
+  pctx.font = 'bold 34px sans-serif';
+  pctx.fillText(value, x + 24, y + 78);
+}
+
 function drawPanel(moisture, probeIn, pumpOn, mode, near, log) {
-  pctx.fillStyle = '#111827';
-  pctx.fillRect(0, 0, panelCanvas.width, panelCanvas.height);
+  pctx.clearRect(0, 0, PANEL_W, PANEL_H);
 
-  pctx.fillStyle = '#e5e7eb';
-  pctx.font = 'bold 56px sans-serif';
-  pctx.fillText('Estufa IoT - Sala VR', 40, 70);
+  // Fundo em cartão arredondado.
+  pctx.fillStyle = '#0f172a';
+  roundRect(4, 4, PANEL_W - 8, PANEL_H - 8, 36);
+  pctx.fill();
+  pctx.strokeStyle = '#334155';
+  pctx.lineWidth = 6;
+  pctx.stroke();
 
-  pctx.font = '46px sans-serif';
-  if (probeIn) {
-    pctx.fillStyle = moisture < 35 ? '#f87171' : '#34d399';
-    pctx.fillText(`Umidade do solo: ${moisture.toFixed(0)}%`, 40, 150);
-  } else {
-    pctx.fillStyle = '#9ca3af';
-    pctx.fillText('Sensor fora do solo (espete no vaso)', 40, 150);
+  // Título.
+  pctx.textAlign = 'left';
+  pctx.fillStyle = '#f1f5f9';
+  pctx.font = 'bold 64px sans-serif';
+  pctx.fillText('Estufa IoT', 48, 100);
+  pctx.textAlign = 'right';
+  pctx.fillStyle = '#64748b';
+  pctx.font = '36px sans-serif';
+  pctx.fillText('Sala VR', PANEL_W - 48, 100);
+  pctx.textAlign = 'left';
+
+  // Umidade: valor grande e barra de progresso com as marcas de 35% e 70%.
+  const level = probeIn ? moisture : 0;
+  const valueColor = !probeIn ? '#64748b' : moisture < 35 ? '#f87171' : '#34d399';
+  pctx.fillStyle = '#94a3b8';
+  pctx.font = '34px sans-serif';
+  pctx.fillText('Umidade do solo', 48, 175);
+  pctx.fillStyle = valueColor;
+  pctx.font = 'bold 110px sans-serif';
+  pctx.fillText(probeIn ? `${moisture.toFixed(0)}%` : 'sem sensor', 48, 290);
+
+  const barX = 48, barY = 318, barW = PANEL_W - 96, barH = 30;
+  pctx.fillStyle = '#1e293b';
+  roundRect(barX, barY, barW, barH, 15);
+  pctx.fill();
+  pctx.fillStyle = valueColor;
+  roundRect(barX, barY, Math.max(barH, barW * (level / 100)), barH, 15);
+  pctx.fill();
+  pctx.fillStyle = '#facc15';
+  for (const mark of [35, 70]) {
+    pctx.fillRect(barX + barW * (mark / 100) - 2, barY - 8, 4, barH + 16);
   }
 
-  pctx.fillStyle = '#e5e7eb';
-  pctx.fillText(`Bomba: ${pumpOn ? 'LIGADA' : 'desligada'}`, 40, 210);
-  pctx.fillText(`Modo: ${mode === 'auto' ? 'automático' : 'manual'}`, 40, 270);
-  pctx.fillText(`Proximidade: ${near ? 'mão detectada' : 'livre'}`, 40, 330);
+  // Estados: bomba, modo e proximidade.
+  drawPill(48, 380, 'Bomba', pumpOn ? 'LIGADA' : 'desligada',
+    pumpOn ? '#38bdf8' : '#1e293b', pumpOn ? '#0f172a' : '#e2e8f0');
+  drawPill(367, 380, 'Modo', mode === 'auto' ? 'automático' : 'manual',
+    mode === 'auto' ? '#a3e635' : '#facc15', '#0f172a');
+  drawPill(686, 380, 'Proximidade', near ? 'mão perto' : 'livre',
+    near ? '#fbbf24' : '#1e293b', near ? '#0f172a' : '#e2e8f0');
 
-  pctx.font = '32px sans-serif';
-  pctx.fillStyle = '#9ca3af';
-  log.forEach((line, i) => pctx.fillText(`• ${line}`, 40, 390 + i * 40));
+  // Eventos recentes.
+  pctx.fillStyle = '#94a3b8';
+  pctx.font = '30px sans-serif';
+  pctx.fillText('Últimos eventos', 48, 530);
+  pctx.fillStyle = '#cbd5e1';
+  pctx.font = '30px sans-serif';
+  log.slice(0, 3).forEach((line, i) => pctx.fillText(`• ${line}`, 48, 572 + i * 36));
 
-  pctx.font = '24px sans-serif';
-  pctx.fillStyle = '#6b7280';
-  pctx.fillText('Gatilho: esfera azul = rega · botão cinza = modo · lateral: pegar · analógico: andar', 40, 610);
+  // Dica de controles.
+  pctx.fillStyle = '#64748b';
+  pctx.font = '26px sans-serif';
+  pctx.fillText('Esfera azul: rega · botão cinza: modo · gatilho lateral: pegar', 48, 690);
 
   panelTexture.needsUpdate = true;
 }
@@ -393,8 +529,19 @@ function toggleMode() {
   sound.playOnce(clickSfx);
 }
 
+const _rayOrigin = new THREE.Vector3();
+const _rayDir = new THREE.Vector3();
+const _rayQuat = new THREE.Quaternion();
 function onSelect(controller) {
   sound.unlock();
+  // Raio do controle: placas, porta e botão de entrada.
+  controller.getWorldPosition(_rayOrigin);
+  _rayDir.set(0, 0, -1).applyQuaternion(controller.getWorldQuaternion(_rayQuat));
+  raycaster.set(_rayOrigin, _rayDir);
+  if (intro.handleRay(raycaster, { canWalk: false })) {
+    haptic(controller, 0.5, 60);
+    return;
+  }
   const p = controller.getWorldPosition(tmp);
   if (p.distanceTo(MODE_BUTTON_POS) < 0.12) {
     toggleMode();
@@ -427,6 +574,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;
   mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(mouse, camera);
+  if (intro.handleRay(raycaster, { canWalk: true })) return;
   const hit = raycaster.intersectObjects([modeButton, modeLed, proxCore, proxHalo], false)[0];
   if (!hit) return;
   if (hit.object === modeButton || hit.object === modeLed) toggleMode();
@@ -442,6 +590,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  post.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -449,6 +598,22 @@ window.addEventListener('resize', () => {
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 let panelTimer = 0;
+let time = 0; // segundos desde o início (para vento, poeira e nuvens)
+let shadowTimer = 0;
+
+// Contador de FPS: aperte F para mostrar/esconder (FPS, draw calls, triângulos).
+const hud = document.createElement('div');
+hud.style.cssText = 'position:fixed;top:8px;left:8px;padding:6px 10px;background:rgba(0,0,0,.6);color:#34d399;font:13px monospace;border-radius:6px;display:none;z-index:5;pointer-events:none';
+document.body.appendChild(hud);
+let showHud = false;
+let fpsAcc = 0;
+let fpsFrames = 0;
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyF') {
+    showHud = !showHud;
+    hud.style.display = showHud ? 'block' : 'none';
+  }
+});
 let alertTimer = 0;
 let hapticTimer = 0;
 let wasPumping = false;
@@ -463,6 +628,7 @@ function render() {
   // 1) Sensor: a terra seca com o tempo; objetos soltos caem.
   soilSensor.update(dt);
   interaction.update(dt);
+  intro.update(dt);
 
   // 2) Regador: inclinado sobre o vaso, adiciona água ao solo.
   const pouring = canIsPouring();
@@ -508,7 +674,7 @@ function render() {
   probeLed.material.color.set(!probeIn ? 0x6b7280 : moisture < irrigation.lowThreshold ? 0xef4444 : 0x22c55e);
   pumpLed.material.color.set(pumping ? 0x38bdf8 : 0x1f2937);
   modeLed.material.color.set(irrigation.mode === 'auto' ? 0x22c55e : 0xfacc15);
-  proxHalo.material.opacity = near ? 0.35 : 0.1;
+  proxHalo.material.opacity = near ? 0.5 : 0.2;
 
   // 6) Água e som.
   emitters.length = 0;
@@ -530,8 +696,40 @@ function render() {
     drawPanel(moisture, probeIn, pumping, irrigation.mode, near, irrigation.log);
   }
 
-  renderer.render(scene, camera);
+  time += dt;
+  if (time - shadowTimer > 0.5) {
+    renderer.shadowMap.needsUpdate = true;
+    shadowTimer = time;
+  }
+  fpsAcc += dt;
+  fpsFrames++;
+  if (fpsAcc >= 0.5) {
+    if (showHud) {
+      const info = renderer.info.render;
+      hud.textContent = `${(fpsFrames / fpsAcc).toFixed(0)} FPS · ${info.calls} draw calls · ${info.triangles.toLocaleString('pt-BR')} triângulos`;
+    }
+    fpsAcc = 0;
+    fpsFrames = 0;
+  }
+  clouds.update(dt);
+  treeSpots.update(time);
+  dust.update(time);
+  post.render(dt);
 }
 
 drawPanel(soilSensor.read(), true, false, irrigation.mode, false, irrigation.log);
+// Sombras de contato (vasos, mesa, árvores), poça no caminho e nuvens.
+buildContactShadows(scene, [
+  ...benchSpots,
+  ...treeSpots.spots,
+  { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.5 },   // sombra da mesa
+  { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.16 },  // sombra do vaso
+]);
+const clouds = buildClouds(scene);
+const dust = buildDust(scene);
+// Jardim com modelos reais (flores, grama, arbustos, cerca). Carrega em segundo plano.
+buildGarden(scene).catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
+// Plantas reais nas bancadas da estufa.
+buildGreenhousePlants(scene, benchSpots).catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
+
 renderer.setAnimationLoop(render);
