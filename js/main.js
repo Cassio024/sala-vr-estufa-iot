@@ -32,7 +32,6 @@ import { Intro } from './intro.js';
 import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
-import { buildFlowerBeds } from './mapa.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
@@ -167,7 +166,6 @@ buildContactShadows(scene, [
   { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.16 },  // sombra do vaso
 ]);
 const clouds = quality.low ? null : buildClouds(scene);
-if (!quality.low) buildFlowerBeds(scene); // canteiros de flores feitos por código
 const dust = quality.low ? null : buildDust(scene);
 
 // Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).

@@ -411,6 +411,25 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
     scene.add(r);
   }
 
+  // Embasamento de concreto em volta da estufa (com vão na porta).
+  const curbH = 0.3;
+  const curbT = 0.25;
+  const curbMat = pbrMaterial('concreto', { repeat: [4, 1], color: 0xe2e0da, roughness: 0.9 });
+  const addCurb = (w, h, d, x, y, z) => {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), curbMat);
+    c.position.set(x, y, z);
+    c.castShadow = true;
+    c.receiveShadow = true;
+    scene.add(c);
+  };
+  addCurb(size + curbT * 2, curbH, curbT, 0, curbH / 2, -half - curbT / 2); // fundo
+  addCurb(curbT, curbH, size, -half - curbT / 2, curbH / 2, 0);          // esquerda
+  addCurb(curbT, curbH, size, half + curbT / 2, curbH / 2, 0);           // direita
+  const frontW = half - DOOR_W / 2;                                       // frente, com vão da porta
+  for (const sx of [-1, 1]) {
+    addCurb(frontW, curbH, curbT, sx * (half + DOOR_W / 2) / 2, curbH / 2, half + curbT / 2);
+  }
+
   return { size, height, floor, ground, door, roofY: (z) => height + 1 - Math.abs(z) / half };
 }
 
