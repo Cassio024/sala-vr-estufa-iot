@@ -8,7 +8,7 @@ THREE.Cache.enabled = true;
 
 // Direção do sol: a mesma luz direcional da estufa usa esta posição.
 // Sol baixo (≈ 30° acima do horizonte): luz quente e sombras longas.
-export const SUN_POSITION = new THREE.Vector3(6, 5, 4);
+export const SUN_POSITION = new THREE.Vector3(7, 3.2, 3.5);
 
 // Porta da estufa (fica no centro da parede da frente, z = +size/2).
 export const DOOR_W = 1.2;
@@ -19,7 +19,7 @@ export const DOOR_H = 2.2;
 // ---------------------------------------------------------------------------
 export function setupRenderer(renderer) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.08;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -33,8 +33,8 @@ export function buildSky(scene) {
   const sky = new Sky();
   sky.scale.setScalar(60); // dentro do far da câmera (80)
   const u = sky.material.uniforms;
-  u.turbidity.value = 3;
-  u.rayleigh.value = 1.2;
+  u.turbidity.value = 5;   // mais névoa: céu mais suave e horizonte quente
+  u.rayleigh.value = 2.6;
   u.mieCoefficient.value = 0.004;
   u.mieDirectionalG.value = 0.8;
   u.sunPosition.value.copy(SUN_POSITION).normalize();
@@ -254,8 +254,9 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4
   const half = size / 2;
 
   // Luzes (uma única com sombra, pensando no headset standalone).
-  scene.add(new THREE.HemisphereLight(0xdff1ff, 0x3a3a44, 0.6));
-  const sun = new THREE.DirectionalLight(0xffe2b8, 3.2);
+  // Fim de tarde: céu azul-claro em cima, chão quente embaixo, sol laranja baixo.
+  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x6b5340, 0.75));
+  const sun = new THREE.DirectionalLight(0xffa35c, 3.6);
   sun.position.copy(SUN_POSITION);
   sun.castShadow = true;
   sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); // quality.js: 1024 no headset standalone

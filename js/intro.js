@@ -103,59 +103,79 @@ function stoneMap() {
   return t;
 }
 
-function drawStationBoard(g, w, h, number, title, short) {
-  g.fillStyle = '#0f172a';
+// Fundo em degradê com borda e faixa de cor com brilho (visual de placa de museu).
+function signBackground(g, w, h, accent = '#38bdf8') {
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#1e293b');
+  grad.addColorStop(1, '#0b1220');
+  g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
-  g.fillStyle = '#38bdf8';
-  g.fillRect(0, 0, w, 10);
+  g.strokeStyle = accent;
+  g.globalAlpha = 0.35;
+  g.lineWidth = 14;
+  g.strokeRect(7, 7, w - 14, h - 14);
+  g.globalAlpha = 1;
+  g.fillStyle = accent;
+  g.shadowColor = accent;
+  g.shadowBlur = 18;
+  g.fillRect(0, 0, w, 14);
+  g.shadowBlur = 0;
+}
 
+function drawStationBoard(g, w, h, number, title, short) {
+  signBackground(g, w, h);
+
+  // Número em círculo com brilho.
+  g.fillStyle = '#38bdf8';
+  g.shadowColor = '#38bdf8';
+  g.shadowBlur = 20;
   g.beginPath();
-  g.arc(56, 84, 28, 0, Math.PI * 2);
+  g.arc(72, 96, 36, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = '#0f172a';
-  g.font = 'bold 34px sans-serif';
+  g.shadowBlur = 0;
+  g.fillStyle = '#0b1220';
+  g.font = 'bold 40px sans-serif';
   g.textAlign = 'center';
-  g.fillText(String(number), 56, 96);
+  g.fillText(String(number), 72, 110);
   g.textAlign = 'left';
 
-  g.fillStyle = '#f1f5f9';
-  g.font = 'bold 34px sans-serif';
-  g.fillText(title, 100, 96);
+  g.fillStyle = '#f8fafc';
+  g.font = 'bold 40px sans-serif';
+  g.fillText(title, 132, 110);
 
   g.fillStyle = '#cbd5e1';
-  g.font = '26px sans-serif';
-  wrapText(g, short, w - 60).slice(0, 4).forEach((line, i) => g.fillText(line, 30, 160 + i * 36));
+  g.font = '28px sans-serif';
+  wrapText(g, short, w - 70).slice(0, 4).forEach((line, i) => g.fillText(line, 36, 185 + i * 38));
 
   g.fillStyle = '#38bdf8';
-  g.font = '22px sans-serif';
-  g.fillText('Clique para ler mais', 30, h - 28);
+  g.font = 'bold 24px sans-serif';
+  g.fillText('Clique para ler mais  ›', 36, h - 30);
 }
 
 function drawDetail(g, w, h, title, paragraphs) {
-  g.fillStyle = '#0f172a';
-  g.fillRect(0, 0, w, h);
+  signBackground(g, w, h);
+
+  g.fillStyle = '#f8fafc';
+  g.font = 'bold 56px sans-serif';
+  g.fillText(title, 56, 116);
   g.fillStyle = '#38bdf8';
-  g.fillRect(0, 0, w, 12);
+  g.fillRect(56, 140, 160, 5);
 
-  g.fillStyle = '#f1f5f9';
-  g.font = 'bold 52px sans-serif';
-  g.fillText(title, 50, 110);
-
-  let y = 190;
-  g.fillStyle = '#cbd5e1';
-  g.font = '30px sans-serif';
+  let y = 200;
+  g.fillStyle = '#e2e8f0';
+  g.font = '32px sans-serif';
   for (const p of paragraphs) {
-    const lines = wrapText(g, p, w - 100);
+    const lines = wrapText(g, p, w - 112);
     for (const line of lines) {
-      g.fillText(line, 50, y);
-      y += 42;
+      g.fillText(line, 56, y);
+      y += 44;
     }
-    y += 22;
+    y += 26;
   }
 
   g.fillStyle = '#64748b';
   g.font = '24px sans-serif';
-  g.fillText('Clique em qualquer lugar para fechar', 50, h - 40);
+  g.fillText('Clique em qualquer lugar para fechar', 56, h - 36);
 }
 
 function texture(c) {
@@ -233,7 +253,10 @@ export class Intro {
 
   _buildEntrance(scene) {
     const { c, g } = makeCanvas(512, 160);
-    g.fillStyle = '#16a34a';
+    const grad = g.createLinearGradient(0, 0, 0, 160);
+    grad.addColorStop(0, '#22c55e');
+    grad.addColorStop(1, '#15803d');
+    g.fillStyle = grad;
     g.fillRect(0, 0, 512, 160);
     g.fillStyle = '#ffffff';
     g.font = 'bold 56px sans-serif';
