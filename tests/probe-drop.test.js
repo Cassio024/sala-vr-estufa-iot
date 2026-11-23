@@ -47,3 +47,19 @@ test('regador (sem ponta para espetar) continua parando em cima da mesa', () => 
   for (let i = 0; i < 200; i++) xr._fall(1 / 72);
   assert.ok(Math.abs(can.position.y - 0.06 - TABLE_Y) < 1e-6);
 });
+
+test('vaso da bancada solto no ar pousa no tampo da bancada (ou no chão, fora dela)', async () => {
+  const { BENCH_TOP_Y } = await import('../js/scene/surfaces.js');
+  const pot = (x, z) => {
+    const o = new THREE.Group();
+    o.position.set(x, 1.4, z);
+    o.userData = { baseOffset: 0, insertDepth: 0, falling: true, vy: 0, held: null };
+    const xr = Object.create(XRInteraction.prototype);
+    Object.assign(xr, { grabbables: [o], surfaceHeight });
+    for (let i = 0; i < 300; i++) xr._fall(1 / 72);
+    return o.position.y;
+  };
+  assert.ok(Math.abs(pot(3.3, 1) - BENCH_TOP_Y) < 1e-6, 'bancada direita');
+  assert.ok(Math.abs(pot(-3.3, -2) - BENCH_TOP_Y) < 1e-6, 'bancada esquerda');
+  assert.ok(Math.abs(pot(1.8, 2)) < 1e-6, 'corredor: cai no chão');
+});

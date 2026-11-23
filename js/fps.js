@@ -215,6 +215,8 @@ export class FirstPersonMode {
   _target() {
     const ray = this._aim();
     const candidates = [
+      ...(this.uiTargets || []).map((o) => [o, 'painel']),
+      ...(this.lockedTargets || []).map((o) => [o, 'preso']),
       ...this.modeTargets.map((o) => [o, 'modo']),
       ...this.waterTargets.map((o) => [o, 'rega']),
       ...(this.held ? [] : this.grabbables.map((o) => [o, 'pegar'])),
@@ -241,6 +243,7 @@ export class FirstPersonMode {
     if (this.onIntroRay(this._aim())) return;
     const t = this._target();
     if (!t) return;
+    if (t.kind === 'painel' || t.kind === 'preso') return; // painel: tratado em onIntroRay
     if (t.kind === 'modo') this.onToggleMode();
     else if (t.kind === 'rega') this.onWater();
     else if (t.kind === 'pegar') this._grab(t.object);
@@ -265,16 +268,13 @@ export class FirstPersonMode {
     const ray = this._aim();
     const hit = ray.intersectObjects(this.world.dropSurfaces, true)[0];
     const p = hit ? hit.point.clone() : ray.ray.at(1, this._v);
-    // Mirando o vaso: solta no meio da terra (o sensor fica espetado no solo).
-    const pc = this.potCenter;
-    if (Math.hypot(p.x - pc.x, p.z - pc.z) < 0.25 && Math.abs(p.y - pc.y) < 0.4) {
-      p.set(pc.x + 0.05, pc.y, pc.z + 0.05);
-    }
     obj.position.set(p.x, Math.max(p.y, 0) + 0.25, p.z);
     obj.rotation.set(0, obj.rotation.y, 0);
     obj.userData.held = null;
     obj.userData.falling = true;
     obj.userData.vy = 0;
+    // Ex.: o sensor solto perto do vaso principal encaixa no meio da terra (main.js).
+    if (this.onDrop) this.onDrop(obj);
   }
 
   // -------------------------------------------------------------------------
@@ -343,7 +343,13 @@ export class FirstPersonMode {
     if (kind !== this.hoverKind || this.held !== this._lastHeld) {
       this.hoverKind = kind;
       this._lastHeld = this.held;
-      const tips = { modo: 'Clique: trocar modo (auto/manual)', rega: 'Clique: rega manual', pegar: 'Clique: pegar' };
+      const tips = {
+        modo: 'Clique: trocar modo (auto/manual)',
+        rega: 'Clique: rega manual',
+        pegar: 'Clique: pegar',
+        painel: 'Clique: usar o painel',
+        preso: 'Planta em análise: presa à mesa com fitas',
+      };
       let tip = kind ? tips[kind] : '';
       if (this.held) tip = this.held === this.can ? 'Botão direito no vaso: regar · Clique: soltar' : 'Clique: soltar (mire no vaso para espetar)';
       this.cross.classList.toggle('alvo', Boolean(kind));

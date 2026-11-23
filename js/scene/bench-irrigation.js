@@ -9,11 +9,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ValveNetwork } from '../valves.js';
+import { BENCH_TOP_Y } from './surfaces.js';
 
 const TOP_Y = 0.8; // tampo das bancadas (ver environment.js > buildBenches)
 const MAIN_Y = TOP_Y + 0.06; // cano principal, na borda de trás da bancada
 const ELBOW_Y = TOP_Y + 0.32; // curva que leva a água por cima do vaso
-const SOIL_Y = TOP_Y + 0.12; // onde as gotas somem (terra do vaso)
+const POT_SOIL_Y = BENCH_TOP_Y + 0.1; // onde as gotas somem quando há vaso embaixo do bico
+const SLOT_RADIUS = 0.12; // vaso a até 12 cm do lugar dele ainda recebe a água do bico
 const MOTOR_Z = -3.12; // motor na ponta da bancada (o primeiro vaso fica em z = -2,6)
 
 const LED_RED_ON = new THREE.Color(0xff2222);
@@ -133,14 +135,16 @@ function buildSign(scene, x, z, rotY) {
  * @param {object} o
  * @param {import('../audio.js').SoundManager} o.sound
  * @param {boolean} o.low modo leve: sem modelos de planta nas bancadas, então põe vasos simples
+ * @param {THREE.Object3D[]} o.grabbables lista de objetos pegáveis (PC e VR): os vasos entram nela
  */
-export function createBenchIrrigation(scene, spots, { sound, low = false }) {
+export function createBenchIrrigation(scene, spots, { sound, low = false, grabbables = [] }) {
   const sides = [-1, 1]
     .map((s) => ({ s, pots: spots.filter((p) => Math.sign(p.x) === s).sort((a, b) => a.z - b.z) }))
     .filter((side) => side.pots.length);
   const valvePos = []; // centro de cada válvula
   const nozzles = []; // bico de cada derivação (de onde cai a água)
   const groups = [];
+  const slots = []; // lugar original de cada vaso (um por válvula)
   const pipeGeos = [];
   const cableGeos = [];
 
@@ -229,6 +233,7 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
       valvePos.push(new THREE.Vector3(xm, ELBOW_Y - 0.06, p.z));
       nozzles.push({ pos: new THREE.Vector3(nozX, ELBOW_Y - 0.07, p.z), side: s });
       groups.push(sideIndex);
+      slots.push({ x: p.x, z: p.z, label: `${s < 0 ? 'E' : 'D'}${pots.indexOf(p) + 1}` });
     }
   });
 
@@ -274,20 +279,63 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
     return sound.create(anchor, sound.buffers.beep, { volume: 0.6, refDistance: 0.5 });
   });
 
-  // Modo leve: as plantas das bancadas não são carregadas, então põe vasos simples
-  // para a água ter onde cair.
+  // ---------------------------------------------------------------------------
+  // Vasos das bancadas como objetos com "física" simples: podem ser pegos
+  // (PC: modo FPS; VR: gatilho lateral), caem e pousam na bancada, mesa ou chão.
+  // ---------------------------------------------------------------------------
+  const potObjects = []; // índice = número do vaso na ValveNetwork
+  const makeGrabbable = (obj, baseOffset) => {
+    obj.userData = { ...obj.userData, baseOffset, insertDepth: 0, falling: false, vy: 0, held: null, benchPot: potObjects.length };
+    potObjects.push(obj);
+    grabbables.push(obj);
+  };
+
+  // Modo leve: as plantas das bancadas não são carregadas, então cada vaso é um
+  // "proxy" invisível (para pegar e cair) desenhado por um único InstancedMesh.
+  let potInstances = null;
   if (low) {
-    const pots = new THREE.InstancedMesh(
+    potInstances = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.07, 0.05, 0.12, 16),
       new THREE.MeshStandardMaterial({ color: 0xb5562b, roughness: 0.85 }),
-      spots.length,
+      slots.length,
     );
-    spots.forEach((p, i) => {
-      d.position.set(p.x, TOP_Y + 0.085, p.z);
-      d.updateMatrix();
-      pots.setMatrixAt(i, d.matrix);
+    potInstances.frustumCulled = false;
+    const hitGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.14, 8);
+    hitGeo.translate(0, 0.07, 0);
+    for (const slot of slots) {
+      const proxy = new THREE.Group();
+      const hit = new THREE.Mesh(hitGeo, new THREE.MeshBasicMaterial());
+      hit.visible = false; // só para a mira/raio acertar o vaso
+      proxy.add(hit);
+      proxy.position.set(slot.x, BENCH_TOP_Y, slot.z);
+      scene.add(proxy);
+      makeGrabbable(proxy, 0);
+    }
+    scene.add(potInstances);
+  }
+  // Tampos invisíveis das bancadas: só para a mira do modo FPS saber onde soltar objetos.
+  const dropSurfaces = sides.map(({ pots }) => {
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.02, 6.8), new THREE.MeshBasicMaterial());
+    top.visible = false;
+    top.position.set(pots[0].x, BENCH_TOP_Y - 0.01, 0);
+    scene.add(top);
+    return top;
+  });
+
+  const potOffset = new THREE.Matrix4().makeTranslation(0, 0.06, 0);
+  const tmpM = new THREE.Matrix4();
+  const tmpV = new THREE.Vector3();
+
+  /** Modo completo: recebe os modelos das plantas (props.js) e torna cada um pegável. */
+  function setPotObjects(objects) {
+    if (low) return;
+    objects.forEach((obj) => {
+      if (!obj) return;
+      obj.updateMatrixWorld(true);
+      // Distância da origem do modelo até a base dele (para pousar certo na bancada).
+      const minY = new THREE.Box3().setFromObject(obj).min.y;
+      makeGrabbable(obj, obj.position.y - minY);
     });
-    scene.add(pots);
   }
 
   // Gotas (InstancedMesh com pool fixo).
@@ -298,7 +346,7 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
     MAX_DROPS,
   );
   dropMesh.frustumCulled = false;
-  const drops = Array.from({ length: MAX_DROPS }, () => ({ alive: false, p: new THREE.Vector3(), vy: 0 }));
+  const drops = Array.from({ length: MAX_DROPS }, () => ({ alive: false, p: new THREE.Vector3(), vy: 0, floor: 0 }));
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   for (let i = 0; i < MAX_DROPS; i++) dropMesh.setMatrixAt(i, hidden);
   scene.add(dropMesh);
@@ -310,7 +358,23 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
 
   const network = new ValveNetwork(groups);
 
+  // Qual vaso está embaixo de cada bico (se tirar o vaso do lugar, a válvula fica sem ele).
+  function assignPots() {
+    slots.forEach((slot, i) => {
+      let found = null;
+      potObjects.forEach((obj, j) => {
+        const u = obj.userData;
+        if (found !== null || u.held || u.falling) return;
+        obj.getWorldPosition(tmpV);
+        const baseY = tmpV.y - u.baseOffset;
+        if (Math.hypot(tmpV.x - slot.x, tmpV.z - slot.z) < SLOT_RADIUS && Math.abs(baseY - BENCH_TOP_Y) < 0.08) found = j;
+      });
+      if (network.valves[i].pot !== found) network.setPot(i, found);
+    });
+  }
+
   function update(dt) {
+    assignPots();
     const opened = network.update(dt);
     if (sound) for (const i of opened) if (beeps[i]) sound.playOnce(beeps[i]);
 
@@ -343,12 +407,13 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
       drop.alive = true;
       drop.vy = 0;
       drop.p.copy(nozzles[i].pos);
+      drop.floor = v.pot === null ? BENCH_TOP_Y : POT_SOIL_Y; // sem vaso, a água cai na bancada
     });
     drops.forEach((drop, i) => {
       if (!drop.alive) return;
       drop.vy -= 6 * dt;
       drop.p.y += drop.vy * dt;
-      if (drop.p.y <= SOIL_Y) {
+      if (drop.p.y <= drop.floor) {
         drop.alive = false;
         dropMesh.setMatrixAt(i, hidden);
         return;
@@ -358,7 +423,16 @@ export function createBenchIrrigation(scene, spots, { sound, low = false }) {
       dropMesh.setMatrixAt(i, d.matrix);
     });
     dropMesh.instanceMatrix.needsUpdate = true;
+
+    // Modo leve: desenha cada vaso onde o proxy dele está (inclusive na mão do jogador).
+    if (potInstances) {
+      potObjects.forEach((obj, j) => {
+        obj.updateWorldMatrix(true, false);
+        potInstances.setMatrixAt(j, tmpM.multiplyMatrices(obj.matrixWorld, potOffset));
+      });
+      potInstances.instanceMatrix.needsUpdate = true;
+    }
   }
 
-  return { network, update };
+  return { network, slots, update, setPotObjects, dropSurfaces };
 }

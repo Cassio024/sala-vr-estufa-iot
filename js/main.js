@@ -11,6 +11,8 @@
 //   input.js          -> mouse e teclado (PC)  ·  interaction.js -> controles VR
 //   fps.js            -> modo FPS no PC (W A S D + mouse, tecla F)
 //   scene/bench-irrigation.js -> motores, caixas d'água, canos e válvulas solenoides das bancadas
+//   ui/control-panel.js -> painel de controle das bancadas (modo, regar agora, bloquear vaso)
+//   scene/analysis.js -> fitas que prendem o vaso principal ("planta em análise")
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -34,6 +36,8 @@ import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
 import { createBenchIrrigation } from './scene/bench-irrigation.js';
+import { ControlPanel } from './ui/control-panel.js';
+import { buildAnalysisStraps } from './scene/analysis.js';
 import { SOIL_Y } from './scene/plant.js';
 
 // ---------------------------------------------------------------------------
@@ -132,6 +136,10 @@ renderer.xr.addEventListener('sessionend', () => {
 // ---------------------------------------------------------------------------
 const room = buildRoom(scene, { shadowMapSize: quality.shadowMapSize, low: quality.low });
 const plant = createPlant(scene);
+// Vaso principal preso à mesa com fitas: planta em análise (não pode ser pego).
+const analysisTargets = buildAnalysisStraps(scene, {
+  base: new THREE.Vector3(0, TABLE_Y, TABLE_Z), height: 0.2, topRadius: 0.13, bottomRadius: 0.1,
+});
 const dev = createDevices(scene);
 const water = createWater(scene);
 const panel = createPanel(scene, new THREE.Vector3(0, 1.5, TABLE_Z - 0.55));
@@ -163,7 +171,10 @@ const dust = quality.low ? null : buildDust(scene);
 // Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
 if (!quality.low) {
   buildGarden(scene).catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
-  buildGreenhousePlants(scene, room.benchSpots).catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
+  // Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
+  buildGreenhousePlants(scene, room.benchSpots)
+    .then((objs) => benchIrrigation.setPotObjects(objs))
+    .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
 }
 
 // Pós-processamento (brilho e vinheta): só no PC.
@@ -182,7 +193,23 @@ const alertSfx = sound.create(dev.probe, sound.buffers.alert, { volume: 0.7, ref
 const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8 });
 
 // Irrigação das bancadas laterais: uma válvula solenoide (com relé) por vaso.
-const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, low: quality.low });
+// Objetos que dá para pegar (PC: modo FPS; VR: gatilho lateral). Os vasos das bancadas entram aqui.
+const grabbables = [dev.can, dev.probe];
+const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, low: quality.low, grabbables });
+
+// Painel de controle das bancadas: perto da porta, à direita, virado para o corredor.
+const controlPanel = new ControlPanel(scene, benchIrrigation.network, benchIrrigation.slots, {
+  position: new THREE.Vector3(2.4, 0, 3.2),
+  rotY: Math.atan2(-1, -0.35),
+  onEvent: (msg) => irrigation.event(msg),
+  onClick: () => sound.playOnce(panelClick),
+});
+const panelClick = sound.create(controlPanel.group, sound.buffers.click, { volume: 0.8 });
+
+// Clique/gatilho em "interfaces": painel das bancadas, depois placas e porta da entrada.
+function uiRay(ray, opts) {
+  return controlPanel.handleRay(ray) || intro.handleRay(ray, opts);
+}
 
 // O navegador só libera áudio depois de um gesto (clique, tecla ou entrar na VR).
 ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => sound.unlock()));
@@ -205,7 +232,7 @@ function onSelect(controller) {
   controller.getWorldPosition(_rayOrigin);
   _rayDir.set(0, 0, -1).applyQuaternion(controller.getWorldQuaternion(_rayQuat));
   _ray.set(_rayOrigin, _rayDir);
-  if (intro.handleRay(_ray, { canWalk: false })) {
+  if (uiRay(_ray, { canWalk: false })) {
     haptic(controller, 0.5, 60);
     return;
   }
@@ -241,12 +268,14 @@ const WORLD = {
     { x: -1.15, z: TABLE_Z, hw: 0.22, hd: 0.22 }, // reservatório
     { x: -(GREENHOUSE_SIZE / 2 - 0.7), z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 }, // bancada esquerda
     { x: GREENHOUSE_SIZE / 2 - 0.7, z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 }, // bancada direita
+    { x: 2.4, z: 3.2, hw: 0.2, hd: 0.2 }, // painel de controle das bancadas
+    { x: -2.4, z: 3.2, hw: 0.12, hd: 0.12 }, // placa explicativa das válvulas
   ],
 };
 
 const interaction = new XRInteraction({
   renderer, scene, camera, rig,
-  grabbables: [dev.can, dev.probe],
+  grabbables,
   surfaceHeight,
   onSelect,
   collider: createCollider(WORLD), // analógico esquerdo anda sem atravessar paredes e móveis
@@ -264,7 +293,7 @@ setupDesktopInput({
   onToggleMode: toggleMode,
   onWater: () => irrigation.requestManualWater(),
   // Clique no PC: placas e porta vêm antes dos botões; andar pelo chão só se a opção estiver ligada.
-  onPick: (ray) => intro.handleRay(ray, { canWalk: clickWalk.enabled }),
+  onPick: (ray) => uiRay(ray, { canWalk: clickWalk.enabled }),
   isBusy: () => Boolean(fps && fps.active),
 });
 
@@ -274,10 +303,13 @@ fps = new FirstPersonMode({
   camera,
   scene,
   orbit,
-  onIntroRay: (ray) => intro.handleRay(ray, { canWalk: false }),
+  onIntroRay: (ray) => uiRay(ray, { canWalk: false }),
+  uiTargets: controlPanel.targets,
+  lockedTargets: [plant.pot, ...analysisTargets],
+  onDrop: snapProbeToPot,
   modeTargets: [dev.modeButton, dev.modeLed],
   waterTargets: [dev.proxCore, dev.proxHalo],
-  grabbables: [dev.can, dev.probe],
+  grabbables,
   can: dev.can,
   potCenter: { x: 0, y: SOIL_Y, z: TABLE_Z },
   onToggleMode: toggleMode,
@@ -285,7 +317,7 @@ fps = new FirstPersonMode({
   world: {
     ...WORLD,
     // Onde dá para soltar objetos.
-    dropSurfaces: [room.tableTop, plant.pot, room.greenhouse.floor, room.greenhouse.ground],
+    dropSurfaces: [room.tableTop, plant.pot, ...benchIrrigation.dropSurfaces, room.greenhouse.floor, room.greenhouse.ground],
   },
 });
 
@@ -334,6 +366,7 @@ function render() {
   intro.update(dt);
   fps.update(dt);
   benchIrrigation.update(dt);
+  controlPanel.update(dt);
   if (room.outdoor) room.outdoor.update(time);
   if (clouds) clouds.update(dt);
   if (dust) dust.update(time);

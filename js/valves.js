@@ -1,41 +1,105 @@
 // Lógica da irrigação das bancadas (sem three.js, testável).
-// Cada vaso tem um sensor de umidade e uma VÁLVULA SOLENOIDE ligada a um RELÉ.
-// A placa (ESP32) decide por vaso, com a mesma histerese da bomba principal:
-//   terra abaixo de 35% -> liga o relé -> válvula abre (luz verde + bipe)
-//   terra chega a 70%   -> desliga o relé -> válvula fecha (luz vermelha)
+//
+// Cada bancada tem várias VÁLVULAS SOLENOIDES (uma por posição de vaso), cada uma
+// ligada a um RELÉ que a placa (ESP32) liga e desliga. Cada VASO tem o seu próprio
+// sensor de umidade. A válvula decide pelo vaso que está embaixo do bico dela —
+// se o vaso for tirado do lugar, ela fica sem leitura e não rega no automático.
+//
+// Modos por bancada (escolhidos no painel de controle):
+//   automático: terra abaixo de 35% -> válvula abre; chega a 70% -> fecha
+//   manual:     só abre quando alguém aperta "Regar agora" (por alguns segundos)
+// Uma válvula BLOQUEADA nunca abre ("não regar este vaso").
 // O motor de cada bancada liga quando pelo menos uma válvula dela está aberta.
 import { SoilMoistureSensor, IrrigationController } from './sensors.js';
 
+export const MANUAL_SECONDS = 4;
+
 export class ValveNetwork {
   /**
-   * @param {number[]} groups grupo (bancada) de cada vaso, ex.: [0,0,0,...,1,1,1]
+   * @param {number[]} groups bancada de cada válvula, ex.: [0,0,0,...,1,1,1]
    * @param {object} [o]
    * @param {() => number} [o.random] gerador aleatório (para testes previsíveis)
    * @param {number} [o.flowPerSec] % de umidade que a válvula aberta adiciona por segundo
+   * @param {number} [o.potCount] quantos vasos existem (padrão: um por válvula)
    */
-  constructor(groups, { random = Math.random, flowPerSec = 10 } = {}) {
+  constructor(groups, { random = Math.random, flowPerSec = 10, potCount = groups.length } = {}) {
     this.groups = groups;
-    this.valves = groups.map((group) => ({
+    this.valves = groups.map((group, i) => ({
       group,
-      // Cada vaso começa com uma umidade e seca num ritmo diferente: assim as
-      // válvulas abrem em momentos diferentes, como numa estufa real.
-      sensor: new SoilMoistureSensor({ initial: 40 + random() * 45, evaporationPerSec: 0.8 + random() * 0.8 }),
-      relay: new IrrigationController({ pumpRatePerSec: flowPerSec }),
+      relay: new IrrigationController({ pumpRatePerSec: flowPerSec, manualDurationSec: MANUAL_SECONDS }),
       open: false,
+      enabled: true, // false = bloqueada pelo painel
+      pot: i < potCount ? i : null, // vaso embaixo do bico (começa: vaso i sob a válvula i)
+    }));
+    // Cada vaso começa com uma umidade e seca num ritmo diferente: assim as
+    // válvulas abrem em momentos diferentes, como numa estufa real.
+    this.pots = Array.from({ length: potCount }, () => ({
+      sensor: new SoilMoistureSensor({ initial: 40 + random() * 45, evaporationPerSec: 0.8 + random() * 0.8 }),
     }));
     const groupCount = Math.max(-1, ...groups) + 1;
     this.motors = Array.from({ length: groupCount }, () => false);
+    this.modes = Array.from({ length: groupCount }, () => 'auto');
+  }
+
+  /** Diz qual vaso está embaixo da válvula (null = nenhum). */
+  setPot(valveIndex, potIndex) {
+    this.valves[valveIndex].pot = potIndex;
+  }
+
+  /** Umidade do vaso embaixo da válvula, ou null se não houver vaso. */
+  moistureAt(valveIndex) {
+    const p = this.valves[valveIndex].pot;
+    return p === null ? null : this.pots[p].sensor.read();
+  }
+
+  /** Bloqueia (false) ou libera (true) a rega de uma válvula. */
+  setEnabled(valveIndex, enabled) {
+    this.valves[valveIndex].enabled = enabled;
+  }
+
+  toggleEnabled(valveIndex) {
+    this.setEnabled(valveIndex, !this.valves[valveIndex].enabled);
+    return this.valves[valveIndex].enabled;
+  }
+
+  /** Muda o modo de uma bancada: 'auto' ou 'manual'. */
+  setMode(group, mode) {
+    if (this.modes[group] === mode) return;
+    this.modes[group] = mode;
+    for (const v of this.valves) {
+      if (v.group === group && v.relay.mode !== mode) v.relay.toggleMode(); // fecha a válvula ao trocar
+    }
+  }
+
+  /** "Regar agora" (modo manual): abre as válvulas liberadas da bancada. Retorna quantas abriram. */
+  waterNow(group) {
+    if (this.modes[group] !== 'manual') return 0;
+    let n = 0;
+    for (const v of this.valves) {
+      if (v.group === group && v.enabled) {
+        v.relay.requestManualWater();
+        n++;
+      }
+    }
+    return n;
   }
 
   /** Avança a simulação. Retorna os índices das válvulas que ABRIRAM neste passo (para o bipe). */
   update(dt) {
+    for (const p of this.pots) p.sensor.update(dt);
     const opened = [];
     this.motors.fill(false);
     this.valves.forEach((v, i) => {
-      v.sensor.update(dt);
-      const water = v.relay.update(dt, v.sensor.read());
-      v.sensor.addWater(water);
       const wasOpen = v.open;
+      if (!v.enabled) {
+        // Bloqueada: o relé fica desligado, a válvula não abre.
+        v.relay.pumpOn = false;
+        v.relay.manualTimer = 0;
+        v.open = false;
+        return;
+      }
+      const water = v.relay.update(dt, this.moistureAt(i));
+      if (v.pot !== null) this.pots[v.pot].sensor.addWater(water);
       v.open = v.relay.pumpOn;
       if (v.open && !wasOpen) opened.push(i);
       if (v.open) this.motors[v.group] = true;
