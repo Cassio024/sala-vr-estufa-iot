@@ -330,6 +330,10 @@ function render() {
     panel.draw({ moisture, probeIn, pumpOn: pumping, mode: irrigation.mode, near, log: irrigation.log, debugText });
   }
 
+  // Zera o contador uma vez por quadro: assim o ?debug soma todas as etapas do
+  // pós-processamento (bloom/vinheta), e não só a última.
+  renderer.info.autoReset = false;
+  renderer.info.reset();
   if (post) post.render(dt);
   else renderer.render(scene, camera);
   const fps = fpsMeter.update(dt);
