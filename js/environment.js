@@ -1,8 +1,18 @@
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { leafTextures, terracottaTextures, metalTexture } from './textures.js';
 
 THREE.Cache.enabled = true;
+
+// Direção do sol: a mesma luz direcional da estufa usa esta posição.
+// Sol baixo (≈ 30° acima do horizonte): luz quente e sombras longas.
+export const SUN_POSITION = new THREE.Vector3(6, 5, 4);
+
+// Porta da estufa (fica no centro da parede da frente, z = +size/2).
+export const DOOR_W = 1.2;
+export const DOOR_H = 2.2;
 
 // ---------------------------------------------------------------------------
 // Renderer: cores naturais e sombras suaves
@@ -16,8 +26,25 @@ export function setupRenderer(renderer) {
 }
 
 // ---------------------------------------------------------------------------
-// HDRI: tenta carregar assets/hdri/estufa.hdr; se não existir, usa um
-// ambiente interno (RoomEnvironment) para os materiais já terem reflexo.
+// Céu 3D procedural (atmosfera real, não uma imagem). Fica bem longe da
+// câmera e acompanha a direção do sol.
+// ---------------------------------------------------------------------------
+export function buildSky(scene) {
+  const sky = new Sky();
+  sky.scale.setScalar(60); // dentro do far da câmera (80)
+  const u = sky.material.uniforms;
+  u.turbidity.value = 3;
+  u.rayleigh.value = 1.2;
+  u.mieCoefficient.value = 0.004;
+  u.mieDirectionalG.value = 0.8;
+  u.sunPosition.value.copy(SUN_POSITION).normalize();
+  scene.add(sky);
+  return sky;
+}
+
+// ---------------------------------------------------------------------------
+// HDRI: usado só para reflexos e luz ambiente (não aparece como fundo).
+// Se o arquivo não existir, usa um ambiente interno (RoomEnvironment).
 // ---------------------------------------------------------------------------
 export function setupEnvironment(renderer, scene, hdriUrl = 'assets/hdri/estufa.hdr') {
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -29,12 +56,132 @@ export function setupEnvironment(renderer, scene, hdriUrl = 'assets/hdri/estufa.
     (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;
       scene.environment = pmrem.fromEquirectangular(tex).texture;
-      scene.background = tex; // céu visto através do vidro da estufa
-      scene.backgroundBlurriness = 0.05;
+      tex.dispose();
     },
     undefined,
     () => console.info(`[ambiente] ${hdriUrl} não encontrado — usando ambiente padrão.`)
   );
+
+  buildSky(scene);
+}
+
+// Chão de grama verde: cor gerada por código (sempre verde) + relevo real
+// (normal map da textura CC0 em assets/textures/grama/normal.jpg).
+function grassGroundMaterial(repeat) {
+  const mat = new THREE.MeshStandardMaterial({ map: grassMap(repeat), roughness: 1 });
+  texLoader.load(
+    'assets/textures/grama/normal.jpg',
+    (t) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(...repeat);
+      mat.normalMap = t;
+      mat.normalScale.set(0.6, 0.6);
+      mat.needsUpdate = true;
+    },
+    undefined,
+    () => {} // sem o arquivo, fica só a cor verde
+  );
+  return mat;
+}
+
+// Textura de grama feita por código (manchas e folhas em vários tons de verde).
+export function grassMap(repeat = [20, 20]) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#4d7d3a';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 900; i++) {
+    const hue = 85 + Math.random() * 30;
+    g.fillStyle = `hsla(${hue}, 45%, ${22 + Math.random() * 22}%, ${0.25 + Math.random() * 0.35})`;
+    g.beginPath();
+    g.ellipse(Math.random() * 512, Math.random() * 512, 2 + Math.random() * 6, 1 + Math.random() * 3, Math.random() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(...repeat);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+// Árvores e arbustos 3D em volta da estufa (InstancedMesh para ficar leve).
+// Copa irregular: esfera com ruído, para parecer folhagem e não um cubo facetado.
+function crownGeometry() {
+  const g = new THREE.IcosahedronGeometry(1, 3);
+  const v = new THREE.Vector3();
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const n = 1
+      + 0.14 * Math.sin(v.x * 3.1 + v.z * 1.7)
+      + 0.10 * Math.cos(v.y * 4.3 - v.x * 2.2)
+      + 0.06 * Math.sin(v.z * 7.9 + v.y * 5.1);
+    v.multiplyScalar(n);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+export function buildOutdoorScenery(scene, { count = 70, minR = 12, maxR = 36 } = {}) {
+  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.2, 1.6, 8);
+  trunkGeo.translate(0, 0.8, 0);
+  const crownGeo = crownGeometry();
+  const spots = []; // sombra de contato no chão
+  const leaf = leafTextures();
+  const trunks = new THREE.InstancedMesh(
+    trunkGeo,
+    pbrMaterial('casca', { repeat: [1, 2], color: 0x5b3b22, roughness: 0.95 }),
+    count);
+  const crowns = new THREE.InstancedMesh(
+    crownGeo,
+    new THREE.MeshStandardMaterial({ map: leaf.map, bumpMap: leaf.bumpMap, bumpScale: 1, roughness: 0.85 }),
+    count);
+
+  const d = new THREE.Object3D();
+  const col = new THREE.Color();
+  const trees = [];
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = minR + Math.random() * (maxR - minR);
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const s = 0.8 + Math.random() * 1.2;
+    const phase = Math.random() * Math.PI * 2;
+    spots.push({ x, y: 0, z, r: 0.85 * s });
+    trees.push({ x, z, s, phase });
+
+    d.position.set(x, 0, z);
+    d.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    d.scale.setScalar(s);
+    d.updateMatrix();
+    trunks.setMatrixAt(i, d.matrix);
+
+    crowns.setColorAt(i, col.setHSL(0.25 + Math.random() * 0.1, 0.45, 0.3 + Math.random() * 0.14));
+  }
+  for (const m of [trunks, crowns]) {
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  // Copas balançando devagar com o vento (só a copa se move, o tronco fica parado).
+  const sway = new THREE.Object3D();
+  function update(t) {
+    trees.forEach((tr, i) => {
+      const wind = Math.sin(t * 0.8 + tr.phase) * 0.035 * tr.s + Math.sin(t * 2.1 + tr.phase * 2) * 0.01 * tr.s;
+      sway.position.set(tr.x + wind, 2.3 * tr.s, tr.z + wind * 0.5);
+      sway.rotation.set(0, 0, 0);
+      sway.scale.set(1.3 * tr.s, 1.5 * tr.s, 1.3 * tr.s);
+      sway.updateMatrix();
+      crowns.setMatrixAt(i, sway.matrix);
+    });
+    crowns.instanceMatrix.needsUpdate = true;
+  }
+  update(0);
+  return { spots, update };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,25 +258,26 @@ export function pbrMaterial(name, { repeat = [1, 1], color = 0xffffff, roughness
 // ---------------------------------------------------------------------------
 // Estufa: piso, vidro, estrutura metálica, telhado, luz do sol
 // ---------------------------------------------------------------------------
-export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2048 } = {}) {
+export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 4096 } = {}) {
   const half = size / 2;
 
   // Luzes (uma única com sombra, pensando no headset standalone).
-  scene.add(new THREE.HemisphereLight(0xdff1ff, 0x3a3a44, 0.5));
-  const sun = new THREE.DirectionalLight(0xfff4e0, 2.5);
-  sun.position.set(3, 7, 3);
+  scene.add(new THREE.HemisphereLight(0xdff1ff, 0x3a3a44, 0.6));
+  const sun = new THREE.DirectionalLight(0xffe2b8, 3.2);
+  sun.position.copy(SUN_POSITION);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); // 1024 no headset standalone
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); // quality.js: 1024 no headset standalone
   const sc = sun.shadow.camera;
-  sc.left = -6; sc.right = 6; sc.top = 6; sc.bottom = -6; sc.near = 1; sc.far = 20;
+  sc.left = -14; sc.right = 14; sc.top = 14; sc.bottom = -14; sc.near = 1; sc.far = 40;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
+  sun.shadow.radius = 3; // borda da sombra mais suave (com PCFSoft)
   scene.add(sun);
 
   // Piso e terreno externo
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
-    pbrMaterial('piso', { repeat: [size, size], fallback: 'tiles', roughness: 0.7 })
+    pbrMaterial('pedras', { repeat: [size * 2, size * 2], color: 0xc9c7c0, roughness: 0.85 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
@@ -137,7 +285,7 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(80, 80),
-    new THREE.MeshStandardMaterial({ color: 0x3f6b35, roughness: 1 })
+    grassGroundMaterial([24, 24])
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.02;
@@ -149,15 +297,68 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2
     color: 0xcfeaf5, transparent: true, opacity: 0.16, roughness: 0.05,
     side: THREE.DoubleSide, depthWrite: false,
   });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8, roughness: 0.35 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, map: metalTexture().map, metalness: 0.8, roughness: 0.35 });
 
+  // Paredes laterais e de trás inteiras.
   const wallGeo = new THREE.PlaneGeometry(size, height);
-  for (const [x, z, ry] of [[0, -half, 0], [0, half, 0], [-half, 0, Math.PI / 2], [half, 0, Math.PI / 2]]) {
+  for (const [x, z, ry] of [[0, -half, 0], [-half, 0, Math.PI / 2], [half, 0, Math.PI / 2]]) {
     const w = new THREE.Mesh(wallGeo, glass);
     w.position.set(x, height / 2, z);
     w.rotation.y = ry;
     scene.add(w);
   }
+  // Parede da frente com a porta: dois painéis de vidro e um painel em cima da porta.
+  const sideW = half - DOOR_W / 2;
+  const sideGeo = new THREE.PlaneGeometry(sideW, height);
+  for (const sx of [-1, 1]) {
+    const w = new THREE.Mesh(sideGeo, glass);
+    w.position.set(sx * (half + DOOR_W / 2) / 2, height / 2, half);
+    scene.add(w);
+  }
+  const lintel = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, height - DOOR_H), glass);
+  lintel.position.set(0, DOOR_H + (height - DOOR_H) / 2, half);
+  scene.add(lintel);
+
+  // Batentes (moldura metálica) e verga da porta.
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, DOOR_H, 0.08), frameMat);
+    post.position.set(sx * DOOR_W / 2, DOOR_H / 2, half);
+    post.castShadow = true;
+    scene.add(post);
+  }
+  const doorHead = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W + 0.12, 0.06, 0.08), frameMat);
+  doorHead.position.set(0, DOOR_H, half);
+  doorHead.castShadow = true;
+  scene.add(doorHead);
+
+  // Folha da porta: gira em torno da dobradiça (borda esquerda). A maçaneta fica na borda direita.
+  const door = new THREE.Group();
+  door.position.set(-DOOR_W / 2, 0, half);
+  const leafH = DOOR_H - 0.03;
+  const leafGlass = new THREE.Mesh(
+    new THREE.BoxGeometry(DOOR_W - 0.04, leafH - 0.06, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xcfeaf5, transparent: true, opacity: 0.22, roughness: 0.05, depthWrite: false })
+  );
+  leafGlass.position.set(DOOR_W / 2, leafH / 2, 0);
+  door.add(leafGlass);
+  // Moldura da folha (4 barras finas).
+  for (const [w, h, x, y] of [
+    [DOOR_W, 0.04, DOOR_W / 2, 0.02], [DOOR_W, 0.04, DOOR_W / 2, leafH - 0.02],
+    [0.04, leafH, 0.02, leafH / 2], [0.04, leafH, DOOR_W - 0.02, leafH / 2],
+  ]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.04), frameMat);
+    bar.position.set(x, y, 0);
+    bar.castShadow = true;
+    door.add(bar);
+  }
+  // Maçaneta (barra vertical) do lado de dentro e de fora.
+  const handle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 0.36, 12),
+    new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 0.9, roughness: 0.25 })
+  );
+  handle.position.set(DOOR_W - 0.14, 1.0, 0.04);
+  door.add(handle);
+  scene.add(door);
 
   // Telhado em duas águas + empenas triangulares
   const slope = Math.atan2(1, half);
@@ -184,6 +385,10 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2
   const posts = [];
   for (const t of [-half, -half / 2, 0, half / 2, half]) posts.push([-half, t], [half, t]);
   for (const t of [-half / 2, 0, half / 2]) posts.push([t, -half], [t, half]);
+  // Sem poste no vão da porta.
+  const doorPosts = posts.filter(([x, z]) => !(z === half && Math.abs(x) < DOOR_W / 2));
+  posts.length = 0;
+  posts.push(...doorPosts);
   const postMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, height, 0.07), frameMat, posts.length);
   const d = new THREE.Object3D();
   posts.forEach(([x, z], i) => {
@@ -206,7 +411,7 @@ export function buildGreenhouse(scene, { size = 8, height = 3, shadowMapSize = 2
     scene.add(r);
   }
 
-  return { size, height, roofY: (z) => height + 1 - Math.abs(z) / half };
+  return { size, height, floor, ground, door, roofY: (z) => height + 1 - Math.abs(z) / half };
 }
 
 // ---------------------------------------------------------------------------
@@ -233,9 +438,10 @@ export function buildBenches(scene, size = 8) {
 
   const perSide = 8;
   const total = perSide * 2;
+  const spots = []; // posições dos vasos, para as sombras de contato
   const pots = new THREE.InstancedMesh(
     new THREE.CylinderGeometry(0.07, 0.05, 0.12, 16),
-    new THREE.MeshStandardMaterial({ color: 0xb5562b, roughness: 0.85 }), total);
+    new THREE.MeshStandardMaterial({ map: terracottaTextures().map, roughness: 0.85 }), total);
   const stems = new THREE.InstancedMesh(
     new THREE.CylinderGeometry(0.008, 0.008, 0.2, 6),
     new THREE.MeshStandardMaterial({ color: 0x2f6b2f }), total);
@@ -254,6 +460,7 @@ export function buildBenches(scene, size = 8) {
     for (let k = 0; k < perSide; k++) {
       const pz = -2.6 + k * 0.75;
       const s = 0.8 + Math.random() * 0.6;
+      spots.push({ x: px, y: topY + 0.005, z: pz, r: 0.1 });
 
       d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1);
       d.position.set(px, topY + 0.025 + 0.06, pz);
@@ -276,11 +483,9 @@ export function buildBenches(scene, size = 8) {
       n++;
     }
   }
-  for (const m of [pots, stems, leaves]) {
-    m.castShadow = true;
-    m.receiveShadow = true;
-    scene.add(m);
-  }
+  // As plantas das bancadas são modelos reais (ver props.js > buildGreenhousePlants).
+  // As instâncias procedurais ficam fora da cena; só as posições são usadas.
+  return spots;
 }
 
 // ---------------------------------------------------------------------------

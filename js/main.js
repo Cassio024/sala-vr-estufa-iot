@@ -1,8 +1,12 @@
 // Ponto de entrada: cria a cena a partir dos módulos e roda o loop principal.
-//   scene/room.js     -> estufa, bancadas, luminária e mesa
+//   scene/room.js     -> estufa, bancadas, luminária, mesa e cenário externo
 //   scene/plant.js    -> vaso, solo e planta (murcha quando seca)
 //   scene/devices.js  -> sensor, regador, bomba, reservatório, botão, proximidade
 //   scene/water.js    -> gotas de água
+//   intro.js          -> caminho de entrada com placas, porta e caminhada
+//   props.js          -> flores, arbustos, grama, cerca, vasos e plantas reais
+//   effects.js        -> sombras de contato, nuvens e poeira no ar
+//   postfx.js         -> brilho e vinheta (só no PC)
 //   ui/panel.js       -> painel de status
 //   input.js          -> mouse e teclado (PC)  ·  interaction.js -> controles VR
 import * as THREE from 'three';
@@ -13,13 +17,17 @@ import { setupRenderer, setupEnvironment } from './environment.js';
 import { SoundManager } from './audio.js';
 import { XRInteraction, haptic } from './interaction.js';
 import { quality, FpsMeter, checkXRSupport } from './quality.js';
-import { buildRoom, GREENHOUSE_SIZE, TABLE_Z } from './scene/room.js';
+import { buildRoom, GREENHOUSE_SIZE, TABLE_Y, TABLE_Z } from './scene/room.js';
 import { createPlant } from './scene/plant.js';
 import { createDevices, CAN_RATE } from './scene/devices.js';
 import { surfaceHeight } from './scene/surfaces.js';
 import { createWater } from './scene/water.js';
 import { createPanel } from './ui/panel.js';
 import { setupDesktopInput } from './input.js';
+import { Intro } from './intro.js';
+import { buildGarden, buildGreenhousePlants } from './props.js';
+import { buildContactShadows, buildClouds, buildDust } from './effects.js';
+import { createPost } from './postfx.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
@@ -28,6 +36,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(quality.pixelRatio); // limitado (1,5 no PC, 1 no headset)
 renderer.setSize(window.innerWidth, window.innerHeight);
 setupRenderer(renderer);
+// O sol não se move: o mapa de sombra é recalculado só de tempos em tempos (ver shadowTimer no loop).
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
 renderer.xr.enabled = true;
 renderer.xr.setFoveation(1); // renderização foveada: menos pixels na borda da lente = mais FPS
 document.getElementById('app').appendChild(renderer.domElement);
@@ -36,7 +47,7 @@ document.getElementById('app').appendChild(VRButton.createButton(renderer));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fc5e8);
 scene.fog = new THREE.Fog(0x9fc5e8, 20, 60);
-setupEnvironment(renderer, scene);
+setupEnvironment(renderer, scene); // céu 3D; o HDRI fica só para reflexos
 
 const rig = new THREE.Group();
 scene.add(rig);
@@ -45,18 +56,66 @@ camera.position.set(0.6, 1.5, 0.8);
 // ?camera=x,y,z muda a posição inicial no PC (usado para gerar os prints e o GIF do README).
 const camParam = new URLSearchParams(window.location.search).get('camera');
 const camXYZ = camParam ? camParam.split(',').map(Number) : [];
-if (camXYZ.length === 3 && camXYZ.every(Number.isFinite)) camera.position.fromArray(camXYZ);
+const customCamera = camXYZ.length === 3 && camXYZ.every(Number.isFinite);
+if (customCamera) camera.position.fromArray(camXYZ);
 rig.add(camera);
 
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 1.0, -1);
-orbit.maxDistance = 6;
+orbit.maxDistance = 12;
 orbit.update();
+
+// Quem anda pela cena: no PC move a câmera; na VR move o "rig"
+// (o headset continua dando a posição da cabeça dentro dele).
+const _head = new THREE.Vector3();
+const viewer = {
+  head() {
+    return camera.getWorldPosition(_head.clone());
+  },
+  isXR() {
+    return renderer.xr.isPresenting;
+  },
+  moveBy(dx, dz) {
+    if (renderer.xr.isPresenting) {
+      rig.position.x += dx;
+      rig.position.z += dz;
+    } else {
+      camera.position.x += dx;
+      camera.position.z += dz;
+      orbit.target.x += dx;
+      orbit.target.z += dz;
+      orbit.update();
+    }
+  },
+  lookAt(x, y, z) {
+    if (renderer.xr.isPresenting) return;
+    orbit.target.set(x, y, z);
+    orbit.update();
+  },
+};
+
+// Ao entrar na VR, a posição atual do computador vira a posição do rig;
+// ao sair, a câmera volta para onde o rig estava.
+renderer.xr.addEventListener('sessionstart', () => {
+  rig.position.x += camera.position.x;
+  rig.position.z += camera.position.z;
+  camera.position.x = 0;
+  camera.position.z = 0;
+});
+renderer.xr.addEventListener('sessionend', () => {
+  const x = rig.position.x;
+  const z = rig.position.z;
+  rig.position.set(0, 0, 0);
+  camera.position.x = x;
+  camera.position.z = z;
+  orbit.target.set(x, 1.2, z - 3);
+  orbit.update();
+});
 
 // ---------------------------------------------------------------------------
 // Cena: estufa, planta, dispositivos, água e painel
 // ---------------------------------------------------------------------------
-buildRoom(scene, { shadowMapSize: quality.shadowMapSize });
+const room = buildRoom(scene, { shadowMapSize: quality.shadowMapSize, low: quality.low });
 const plant = createPlant(scene);
 const dev = createDevices(scene);
 const water = createWater(scene);
@@ -65,6 +124,35 @@ const panel = createPanel(scene, new THREE.Vector3(0, 1.5, TABLE_Z - 0.55));
 // Bomba e planta em glTF são pesadas (~326 mil triângulos juntas): no headset standalone ficam as formas simples.
 plant.loadModels({ loadHeavy: quality.loadHeavyModels });
 dev.loadModels({ loadHeavy: quality.loadHeavyModels });
+
+// Caminho de entrada com placas explicativas (fora da estufa).
+const intro = new Intro({
+  scene,
+  camera,
+  viewer,
+  walkables: [room.greenhouse.ground, room.greenhouse.floor],
+  door: room.greenhouse.door,
+});
+if (!customCamera) intro.start(); // ?camera=x,y,z mantém a posição escolhida (prints do README)
+
+// Sombras de contato (vasos, mesa, árvores), nuvens e poeira no ar.
+buildContactShadows(scene, [
+  ...room.benchSpots,
+  ...(room.outdoor ? room.outdoor.spots : []),
+  { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.5 },   // sombra da mesa
+  { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.16 },  // sombra do vaso
+]);
+const clouds = quality.low ? null : buildClouds(scene);
+const dust = quality.low ? null : buildDust(scene);
+
+// Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
+if (!quality.low) {
+  buildGarden(scene).catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
+  buildGreenhousePlants(scene, room.benchSpots).catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
+}
+
+// Pós-processamento (brilho e vinheta): só no PC.
+const post = quality.low ? null : createPost(renderer, scene, camera);
 
 // ---------------------------------------------------------------------------
 // Lógica IoT, som e interação
@@ -80,10 +168,7 @@ const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8
 
 // O navegador só libera áudio depois de um gesto (clique, tecla ou entrar na VR).
 ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, () => sound.unlock()));
-renderer.xr.addEventListener('sessionstart', () => {
-  sound.unlock();
-  renderer.xr.setFoveation(1);
-});
+renderer.xr.addEventListener('sessionstart', () => sound.unlock());
 
 const tmp = new THREE.Vector3();
 
@@ -92,9 +177,20 @@ function toggleMode() {
   sound.playOnce(clickSfx);
 }
 
-// Gatilho do controle VR: perto do botão cinza troca o modo; perto da esfera azul rega.
+// Gatilho do controle VR: primeiro placas/porta/chão; depois botão cinza (modo) e esfera azul (rega).
+const _rayOrigin = new THREE.Vector3();
+const _rayDir = new THREE.Vector3();
+const _rayQuat = new THREE.Quaternion();
+const _ray = new THREE.Raycaster();
 function onSelect(controller) {
   sound.unlock();
+  controller.getWorldPosition(_rayOrigin);
+  _rayDir.set(0, 0, -1).applyQuaternion(controller.getWorldQuaternion(_rayQuat));
+  _ray.set(_rayOrigin, _rayDir);
+  if (intro.handleRay(_ray, { canWalk: false })) {
+    haptic(controller, 0.5, 60);
+    return;
+  }
   const p = controller.getWorldPosition(tmp);
   if (p.distanceTo(dev.MODE_BUTTON_POS) < 0.12) {
     toggleMode();
@@ -120,12 +216,15 @@ setupDesktopInput({
   waterTargets: [dev.proxCore, dev.proxHalo],
   onToggleMode: toggleMode,
   onWater: () => irrigation.requestManualWater(),
+  // Clique no PC: placas, porta e caminhar pelo chão vêm antes dos botões.
+  onPick: (ray) => intro.handleRay(ray, { canWalk: true }),
 });
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (post) post.resize(window.innerWidth, window.innerHeight);
 });
 
 // ---------------------------------------------------------------------------
@@ -154,10 +253,23 @@ let alertTimer = 0;
 let hapticTimer = 0;
 let wasPumping = false;
 let wasPouring = false;
+let time = 0; // segundos desde o início (vento, poeira, nuvens)
+let shadowTimer = 0;
 const emitters = [];
 
 function render() {
   const dt = Math.min(clock.getDelta(), 0.1);
+  time += dt;
+
+  // 0) Cenário vivo: caminhada, porta, vento, nuvens e poeira.
+  intro.update(dt);
+  if (room.outdoor) room.outdoor.update(time);
+  if (clouds) clouds.update(dt);
+  if (dust) dust.update(time);
+  if (time - shadowTimer > 0.5) {
+    renderer.shadowMap.needsUpdate = true;
+    shadowTimer = time;
+  }
 
   // 1) Sensor: a terra seca com o tempo; objetos soltos caem.
   soilSensor.update(dt);
@@ -218,7 +330,8 @@ function render() {
     panel.draw({ moisture, probeIn, pumpOn: pumping, mode: irrigation.mode, near, log: irrigation.log, debugText });
   }
 
-  renderer.render(scene, camera);
+  if (post) post.render(dt);
+  else renderer.render(scene, camera);
   const fps = fpsMeter.update(dt);
   if (quality.debug) updateDebugText(fps);
 }
