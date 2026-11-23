@@ -30,6 +30,8 @@ import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
 import { FirstPersonMode } from './fps.js';
+import { createCollider } from './collision.js';
+import { createClickWalkOption } from './ui/options.js';
 import { SOIL_Y } from './scene/plant.js';
 
 // ---------------------------------------------------------------------------
@@ -209,13 +211,30 @@ function onSelect(controller) {
   }
 }
 
+// Mundo para colisão (modo FPS no PC e andar com joystick na VR):
+// paredes de vidro (só passa pela porta) e móveis que bloqueiam a passagem.
+const WORLD = {
+  half: GREENHOUSE_SIZE / 2,
+  doorHalfWidth: 0.6,
+  limit: 36,
+  boxes: [
+    { x: 0, z: TABLE_Z, hw: 0.7, hd: 0.35 }, // mesa
+    { x: -1.15, z: TABLE_Z, hw: 0.22, hd: 0.22 }, // reservatório
+    { x: -(GREENHOUSE_SIZE / 2 - 0.7), z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 }, // bancada esquerda
+    { x: GREENHOUSE_SIZE / 2 - 0.7, z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 }, // bancada direita
+  ],
+};
+
 const interaction = new XRInteraction({
   renderer, scene, camera, rig,
   grabbables: [dev.can, dev.probe],
   surfaceHeight,
   onSelect,
-  bounds: GREENHOUSE_SIZE / 2 - 0.4,
+  collider: createCollider(WORLD), // analógico esquerdo anda sem atravessar paredes e móveis
 });
+
+// Opção "andar ao clicar no chão" (PC). Começa desligada; o botão/tecla C liga.
+const clickWalk = createClickWalkOption();
 
 setupDesktopInput({
   renderer,
@@ -224,8 +243,8 @@ setupDesktopInput({
   waterTargets: [dev.proxCore, dev.proxHalo],
   onToggleMode: toggleMode,
   onWater: () => irrigation.requestManualWater(),
-  // Clique no PC: placas, porta e caminhar pelo chão vêm antes dos botões.
-  onPick: (ray) => intro.handleRay(ray, { canWalk: true }),
+  // Clique no PC: placas e porta vêm antes dos botões; andar pelo chão só se a opção estiver ligada.
+  onPick: (ray) => intro.handleRay(ray, { canWalk: clickWalk.enabled }),
   isBusy: () => Boolean(fps && fps.active),
 });
 
@@ -244,16 +263,7 @@ fps = new FirstPersonMode({
   onToggleMode: toggleMode,
   onWater: () => irrigation.requestManualWater(),
   world: {
-    half: GREENHOUSE_SIZE / 2,
-    doorHalfWidth: 0.6,
-    limit: 36,
-    // Móveis que bloqueiam a passagem: mesa, reservatório e as duas bancadas.
-    boxes: [
-      { x: 0, z: TABLE_Z, hw: 0.7, hd: 0.35 },
-      { x: -1.15, z: TABLE_Z, hw: 0.22, hd: 0.22 },
-      { x: -(GREENHOUSE_SIZE / 2 - 0.7), z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 },
-      { x: GREENHOUSE_SIZE / 2 - 0.7, z: 0, hw: 0.35, hd: (GREENHOUSE_SIZE - 1.2) / 2 },
-    ],
+    ...WORLD,
     // Onde dá para soltar objetos.
     dropSurfaces: [room.tableTop, plant.pot, room.greenhouse.floor, room.greenhouse.ground],
   },

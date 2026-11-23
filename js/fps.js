@@ -6,11 +6,11 @@
 //   botão direito (segurando o regador e mirando o vaso) -> regar
 // O mouse fica "preso" na tela (Pointer Lock), como nos jogos.
 import * as THREE from 'three';
+import { createCollider } from './collision.js';
 
 const EYE_HEIGHT = 1.6;
 const WALK_SPEED = 2.2; // m/s
 const RUN_SPEED = 4.2;
-const RADIUS = 0.25; // "corpo" do jogador, para não atravessar paredes e móveis
 const REACH = 3; // alcance da mão (m)
 const LOOK_SPEED = 0.0022;
 
@@ -29,10 +29,11 @@ export class FirstPersonMode {
    * @param {{x:number,y:number,z:number}} o.potCenter centro do vaso (no nível do solo)
    * @param {() => void} o.onToggleMode
    * @param {() => void} o.onWater
-   * @param {object} o.world limites para colisão
+   * @param {object} o.world limites para colisão (ver collision.js) e dropSurfaces
    */
   constructor(o) {
     Object.assign(this, o);
+    this.collider = createCollider(o.world); // paredes, porta e móveis (compartilhado com a VR)
     this.active = false;
     this.keys = new Set();
     this.yaw = 0;
@@ -279,23 +280,6 @@ export class FirstPersonMode {
   // -------------------------------------------------------------------------
   // Movimento com colisão simples
   // -------------------------------------------------------------------------
-  _blocked(x, z) {
-    const w = this.world;
-    // Móveis (mesa, bancadas, reservatório) como retângulos.
-    for (const b of w.boxes) {
-      if (Math.abs(x - b.x) < b.hw + RADIUS && Math.abs(z - b.z) < b.hd + RADIUS) return true;
-    }
-    // Paredes de vidro da estufa: não dá para encostar nem atravessar, só passar pela porta.
-    const h = w.half;
-    const alongZ = Math.abs(z) < h + RADIUS;
-    const alongX = Math.abs(x) < h + RADIUS;
-    if (alongZ && Math.abs(Math.abs(x) - h) < RADIUS) return true; // paredes laterais
-    if (alongX && Math.abs(z + h) < RADIUS) return true; // parede do fundo
-    const inDoor = Math.abs(x) < w.doorHalfWidth - RADIUS * 0.6;
-    if (alongX && Math.abs(z - h) < RADIUS && !inDoor) return true; // parede da frente (com porta)
-    return false;
-  }
-
   _move(dt) {
     let fx = 0;
     let fz = 0;
@@ -313,13 +297,7 @@ export class FirstPersonMode {
     const dx = ((-sin * fz + cos * fx) / len) * speed;
     const dz = ((-cos * fz - sin * fx) / len) * speed;
 
-    const p = this.camera.position;
-    const lim = this.world.limit;
-    // Tenta mover em X e em Z separadamente: assim o jogador "desliza" pelas paredes.
-    const nx = THREE.MathUtils.clamp(p.x + dx, -lim, lim);
-    if (!this._blocked(nx, p.z)) p.x = nx;
-    const nz = THREE.MathUtils.clamp(p.z + dz, -lim, lim);
-    if (!this._blocked(p.x, nz)) p.z = nz;
+    this.collider.tryMove(this.camera.position, dx, dz);
   }
 
   // -------------------------------------------------------------------------

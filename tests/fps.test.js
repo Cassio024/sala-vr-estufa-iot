@@ -7,6 +7,7 @@ import { register } from 'node:module';
 register('./helpers/three-loader.mjs', import.meta.url);
 const THREE = await import('three');
 const { FirstPersonMode } = await import('../js/fps.js');
+const { createCollider } = await import('../js/collision.js');
 
 const WORLD = {
   half: 4,
@@ -17,7 +18,7 @@ const WORLD = {
 
 function player(x, z, yaw = 0) {
   const f = Object.create(FirstPersonMode.prototype);
-  Object.assign(f, { keys: new Set(), yaw, pitch: 0, world: WORLD, camera: { position: new THREE.Vector3(x, 1.6, z) } });
+  Object.assign(f, { keys: new Set(), yaw, pitch: 0, world: WORLD, collider: createCollider(WORLD), camera: { position: new THREE.Vector3(x, 1.6, z) } });
   return f;
 }
 

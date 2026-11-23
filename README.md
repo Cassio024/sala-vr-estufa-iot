@@ -30,6 +30,7 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 - Clique no **botão cinza** para trocar o modo.
 - Clique na **esfera azul** para regar (rega manual).
 - Atalhos: `M` troca o modo, `Espaço` rega.
+- **Andar ao clicar no chão:** opção que começa **desligada**. Ligue pelo botão 🚶 no canto inferior esquerdo ou pela tecla `C` (a escolha fica salva no navegador).
 
 **Modo FPS (como um jogo, no computador):** aperte **F** ou clique em **🎮 Modo FPS** (canto inferior esquerdo).
 O mouse fica preso na tela, como num jogo de tiro em primeira pessoa.
@@ -66,7 +67,7 @@ Para usar no **Meta Quest** (ou outro headset), o jeito mais simples é publicar
 1. No Quest, abra o app **Navegador** (Meta Quest Browser).
 2. Digite `cassio024.github.io/sala-vr-estufa-iot` e espere a sala carregar.
 3. Toque em **ENTER VR** (botão embaixo da página) e permita o acesso à realidade virtual.
-4. Controles: **gatilho** perto do botão cinza troca o modo; perto da esfera azul rega · **gatilho lateral** pega o regador e o sensor · **analógico para frente** mira e teletransporta · **analógico para os lados** gira 30°.
+4. Controles: **gatilho** perto do botão cinza troca o modo; perto da esfera azul rega · **gatilho lateral** pega o regador e o sensor · **analógico esquerdo** anda (para onde você está olhando, sem atravessar paredes e móveis) · **analógico direito para os lados** gira 30° · **analógico direito para frente** mira e teletransporta.
 
 Se o botão mostrar **VR NOT SUPPORTED**, o navegador não tem WebXR (use o navegador do Quest, não um app de vídeo). Se mostrar **WEBXR NEEDS HTTPS**, o link foi aberto com `http://` — use o endereço do GitHub Pages, que é HTTPS.
 
@@ -87,6 +88,7 @@ Meta no Quest: **72 a 90 FPS** estáveis.
 | Gatilho no botão cinza troca o modo | Painel mostra "manual"/"automático" | ☐ |
 | Gatilho na esfera azul rega (modo manual) | Bomba liga, gotas caem | ☐ |
 | Pegar regador e sensor (gatilho lateral) | Objeto segue a mão | ☐ |
+| Andar com o analógico esquerdo (sem atravessar paredes) | Analógico esquerdo | ☐ |
 | Teletransporte e giro | Analógico direito | ☐ |
 | Vibração e som | Ao regar / bomba ligada | ☐ |
 
@@ -141,6 +143,8 @@ js/scene/water.js     -> gotas de água
 js/ui/panel.js        -> painel de status
 js/input.js           -> mouse e teclado (PC)
 js/fps.js             -> modo FPS: W A S D, mouse preso, mira, pegar/soltar e regar
+js/collision.js       -> colisão com paredes, porta e móveis (FPS e joystick da VR)
+js/ui/options.js      -> opção "andar ao clicar" (PC)
 js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
 js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa
 js/audio.js           -> sons espaciais gerados por código

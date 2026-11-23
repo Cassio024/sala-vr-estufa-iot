@@ -20,18 +20,24 @@ export function haptic(controller, strength = 0.5, ms = 50) {
 }
 
 // Controles VR:
-//  - gatilho (select)        -> onSelect(controller)
-//  - gatilho lateral (squeeze) -> pegar / soltar objetos "grabbables"
-//  - analógico para frente   -> mostra o raio, ao soltar teletransporta
-//  - analógico para os lados -> giro de 30°
+//  - gatilho (select)             -> onSelect(controller)
+//  - gatilho lateral (squeeze)    -> pegar / soltar objetos "grabbables"
+//  - analógico ESQUERDO           -> andar (para onde se está olhando), como num jogo
+//  - analógico direito p/ os lados -> giro de 30°
+//  - analógico direito p/ frente  -> mostra o raio, ao soltar teletransporta
+// Com `collider` (collision.js), andar e teletransportar respeitam paredes, porta e móveis.
+const MOVE_SPEED = 1.6; // m/s com o analógico todo inclinado
+const DEADZONE = 0.15;
+
 export class XRInteraction {
-  constructor({ renderer, scene, camera, rig, grabbables, surfaceHeight, onSelect, bounds = 3.6 }) {
+  constructor({ renderer, scene, camera, rig, grabbables, surfaceHeight, onSelect, bounds = 3.6, collider = null }) {
     this.scene = scene;
     this.camera = camera;
     this.rig = rig;
     this.grabbables = grabbables;
     this.surfaceHeight = surfaceHeight; // (x, z, yDaBase) -> { y, soil }
-    this.bounds = bounds;
+    this.bounds = bounds; // usado só se não houver collider
+    this.collider = collider;
     this.controllers = [];
     this.target = new THREE.Vector3();
     this.targetValid = false;
@@ -48,7 +54,7 @@ export class XRInteraction {
 
     for (let i = 0; i < 2; i++) {
       const c = renderer.xr.getController(i);
-      Object.assign(c.userData, { gamepad: null, held: null, aiming: false, snapLock: false, wasNear: false });
+      Object.assign(c.userData, { gamepad: null, handedness: '', index: i, held: null, aiming: false, snapLock: false, wasNear: false });
 
       c.add(new THREE.Mesh(pointerGeo, pointerMat));
       const ray = new THREE.Line(
@@ -59,7 +65,10 @@ export class XRInteraction {
       ray.visible = false;
       c.add(ray);
 
-      c.addEventListener('connected', (e) => { c.userData.gamepad = e.data.gamepad; });
+      c.addEventListener('connected', (e) => {
+        c.userData.gamepad = e.data.gamepad;
+        c.userData.handedness = e.data.handedness; // 'left' | 'right' | 'none'
+      });
       c.addEventListener('disconnected', () => { c.userData.gamepad = null; });
       c.addEventListener('selectstart', () => onSelect(c));
       c.addEventListener('squeezestart', () => this.grab(c));
@@ -125,13 +134,25 @@ export class XRInteraction {
   }
 
   // --- Teletransporte e giro ----------------------------------------------
-  _locomotion(c) {
+  // Mão esquerda anda; mão direita gira e teletransporta.
+  // Se o headset não informar a mão, o controle 0 é tratado como esquerdo.
+  _isLeft(c) {
+    const h = c.userData.handedness;
+    return h ? h === 'left' : c.userData.index === 0;
+  }
+
+  _locomotion(c, dt) {
     const u = c.userData;
     const gp = u.gamepad;
     if (!gp || !gp.axes) return;
     const ax = gp.axes;
     const x = ax[2] !== undefined ? ax[2] : ax[0] || 0;
     const y = ax[3] !== undefined ? ax[3] : ax[1] || 0;
+
+    if (this._isLeft(c)) {
+      this._walk(x, y, dt);
+      return;
+    }
 
     if (y < -0.7) {
       u.aiming = true;
@@ -153,6 +174,32 @@ export class XRInteraction {
     }
   }
 
+  // Andar contínuo: frente/trás e lados em relação para onde a cabeça está olhando.
+  _walk(x, y, dt) {
+    if (Math.abs(x) < DEADZONE && Math.abs(y) < DEADZONE) return;
+    this.camera.getWorldDirection(_d);
+    _d.y = 0;
+    if (_d.lengthSq() < 1e-6) return;
+    _d.normalize();
+    // direita = frente × cima
+    const rx = -_d.z;
+    const rz = _d.x;
+    const speed = MOVE_SPEED * dt;
+    const dx = (_d.x * -y + rx * x) * speed;
+    const dz = (_d.z * -y + rz * x) * speed;
+
+    this.camera.getWorldPosition(_h);
+    const before = { x: _h.x, z: _h.z };
+    const after = { x: _h.x, z: _h.z };
+    if (this.collider) this.collider.tryMove(after, dx, dz);
+    else {
+      after.x = THREE.MathUtils.clamp(after.x + dx, -this.bounds, this.bounds);
+      after.z = THREE.MathUtils.clamp(after.z + dz, -this.bounds, this.bounds);
+    }
+    this.rig.position.x += after.x - before.x;
+    this.rig.position.z += after.z - before.z;
+  }
+
   _aim(c) {
     c.getWorldPosition(_o);
     _d.set(0, 0, -1).applyQuaternion(c.getWorldQuaternion(_q));
@@ -162,7 +209,10 @@ export class XRInteraction {
       const t = -_o.y / _d.y; // interseção com o chão (y = 0)
       if (t > 0 && t < 10) {
         _t.copy(_o).addScaledVector(_d, t);
-        if (Math.abs(_t.x) < this.bounds && Math.abs(_t.z) < this.bounds) {
+        const ok = this.collider
+          ? Math.abs(_t.x) < 36 && Math.abs(_t.z) < 36 && !this.collider.blocked(_t.x, _t.z)
+          : Math.abs(_t.x) < this.bounds && Math.abs(_t.z) < this.bounds;
+        if (ok) {
           this.target.copy(_t);
           this.targetValid = true;
           dist = t;
@@ -191,6 +241,6 @@ export class XRInteraction {
 
   update(dt) {
     this._fall(dt);
-    for (const c of this.controllers) this._locomotion(c);
+    for (const c of this.controllers) this._locomotion(c, dt);
   }
 }
