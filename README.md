@@ -4,9 +4,15 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 
 **Acesse:** https://cassio024.github.io/sala-vr-estufa-iot/ (no PC ou no navegador do headset)
 
-![Tour pela sala VR](docs/img/tour.gif)
-
 ![Sala VR no computador](docs/img/sala-pc.jpg)
+
+| Mesa principal | Bancadas com balanças e sensores |
+|---|---|
+| ![Mesa principal: vaso em análise, regador, botão REGAR e bomba](docs/img/mesa.jpg) | ![Bancada: válvulas, balanças de segurança e sensores de umidade](docs/img/bancadas.jpg) |
+| **Painel das bancadas** | **Placa-mãe e fios** |
+| ![Painel das bancadas com modos, limites e os 16 vasos](docs/img/painel-bancadas.jpg) | ![Placa-mãe no fundo da estufa com os fios até bancadas e mesa](docs/img/placa-mae.jpg) |
+
+Tour animado (versão anterior da sala): [docs/img/tour.gif](docs/img/tour.gif)
 
 ## O que tem na sala
 
@@ -119,7 +125,7 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 | Cerca de madeira em volta do mapa (InstancedMesh, 2 draw calls) | sim | sim |
 | Plantas reais nas bancadas (16 vasos pegáveis) | sim | sim |
 | Nuvens, poeira e pós-processamento | sim | não |
-| Draw calls (vista de dentro da estufa, medido com `?debug`) | ~75 | ~52 |
+| Draw calls (vista de dentro da estufa, medido com `?debug`) | ~120 | ~100 |
 | Sombra (1 luz só) | 2048 px | 1024 px |
 | `setPixelRatio` | até 1,5 | 1 |
 | Renderização foveada | `setFoveation(1)` | `setFoveation(1)` |
