@@ -168,14 +168,11 @@ buildContactShadows(scene, [
 const clouds = quality.low ? null : buildClouds(scene);
 const dust = quality.low ? null : buildDust(scene);
 
-// Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
-if (!quality.low) {
-  buildGarden(scene).catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
-  // Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
-  buildGreenhousePlants(scene, room.benchSpots)
-    .then((objs) => benchIrrigation.setPotObjects(objs))
-    .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
-}
+// Jardim (flores, arbustos, cerca) e plantas nas bancadas: nos dois modos.
+// O jardim é desenhado com InstancedMesh (uma draw call por tipo de planta); no modo
+// leve (Quest) vão metade das cópias.
+buildGarden(scene, { density: quality.low ? 0.5 : 1 })
+  .catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
 
 // Pós-processamento (brilho e vinheta): só no PC.
 const post = quality.low ? null : createPost(renderer, scene, camera);
@@ -195,7 +192,11 @@ const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8
 // Irrigação das bancadas laterais: uma válvula solenoide (com relé) por vaso.
 // Objetos que dá para pegar (PC: modo FPS; VR: gatilho lateral). Os vasos das bancadas entram aqui.
 const grabbables = [dev.can, dev.probe];
-const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, low: quality.low, grabbables });
+const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, grabbables });
+// Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
+buildGreenhousePlants(scene, room.benchSpots)
+  .then((objs) => benchIrrigation.setPotObjects(objs))
+  .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
 
 // Painel de controle das bancadas: perto da porta, à direita, virado para o corredor.
 const controlPanel = new ControlPanel(scene, benchIrrigation.network, benchIrrigation.slots, {
