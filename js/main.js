@@ -32,8 +32,7 @@ import { Intro } from './intro.js';
 import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
 import { createPost } from './postfx.js';
-import { buildLake } from './lake.js';
-import { buildFlowerBeds, buildStonePath } from './mapa.js';
+import { buildFlowerBeds } from './mapa.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
 import { createClickWalkOption } from './ui/options.js';
@@ -168,8 +167,6 @@ buildContactShadows(scene, [
   { x: 0, y: TABLE_Y, z: TABLE_Z, r: 0.16 },  // sombra do vaso
 ]);
 const clouds = quality.low ? null : buildClouds(scene);
-const lake = buildLake(scene);
-buildStonePath(scene); // caminho de pedras até o lago
 if (!quality.low) buildFlowerBeds(scene).catch((err) => console.error('[mapa] falha nos canteiros:', err));
 const dust = quality.low ? null : buildDust(scene);
 
@@ -374,7 +371,6 @@ function render() {
   controlPanel.update(dt);
   if (room.outdoor) room.outdoor.update(time);
   if (clouds) clouds.update(dt);
-  lake.update(time);
   if (dust) dust.update(time);
   if (time - shadowTimer > 0.5) {
     renderer.shadowMap.needsUpdate = true;

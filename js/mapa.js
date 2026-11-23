@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { placeProp } from './props.js';
-import { LAKE } from './lake.js';
 
 // ---------------------------------------------------------------------------
 // Mapa do jardim: canteiros de flores coloridas e um caminho de pedras
@@ -39,26 +38,4 @@ export async function buildFlowerBeds(scene) {
     }
   }
   return Promise.all(jobs);
-}
-
-// Caminho de pedras da entrada até a beira do lago (pedras chatas, poucas peças).
-export function buildStonePath(scene, from = { x: -0.6, z: 11.2 }) {
-  const edgeDir = new THREE.Vector2(from.x - LAKE.x, from.z - LAKE.z).normalize();
-  const to = { x: LAKE.x + edgeDir.x * (LAKE.r + 0.2), z: LAKE.z + edgeDir.y * (LAKE.r + 0.2) };
-  const count = 8;
-  const geo = new THREE.CylinderGeometry(0.22, 0.24, 0.05, 14);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.9 });
-  const stones = new THREE.InstancedMesh(geo, mat, count);
-  const d = new THREE.Object3D();
-  for (let i = 0; i < count; i++) {
-    const t = (i + 0.5) / count;
-    d.position.set(from.x + (to.x - from.x) * t, 0.025, from.z + (to.z - from.z) * t);
-    d.rotation.set(0, Math.random() * Math.PI, 0);
-    d.scale.set(0.9 + Math.random() * 0.25, 1, 0.9 + Math.random() * 0.25);
-    d.updateMatrix();
-    stones.setMatrixAt(i, d.matrix);
-  }
-  stones.receiveShadow = true;
-  scene.add(stones);
-  return stones;
 }

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { LAKE } from './lake.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ---------------------------------------------------------------------------
@@ -83,8 +82,7 @@ export function buildGreenhousePlants(scene, spots) {
 export function buildGarden(scene) {
   const inGreenhouse = (x, z) => Math.abs(x) < 5 && Math.abs(z) < 5;
   const onPath = (x, z) => Math.abs(x) < 1.6 && z > 3 && z < 12;
-  const inLake = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 1.2;
-  const avoid = (x, z) => inGreenhouse(x, z) || onPath(x, z) || inLake(x, z);
+  const avoid = (x, z) => inGreenhouse(x, z) || onPath(x, z);
   const area = { minR: 6, maxR: 24, avoid };
 
   const jobs = [
