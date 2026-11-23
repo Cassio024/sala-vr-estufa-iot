@@ -38,7 +38,7 @@ import { createClickWalkOption } from './ui/options.js';
 import { createBenchIrrigation } from './scene/bench-irrigation.js';
 import { ControlPanel } from './ui/control-panel.js';
 import { buildAnalysisStraps } from './scene/analysis.js';
-import { SOIL_Y } from './scene/plant.js';
+import { SOIL_Y, POT_RIM, SAUCER } from './scene/plant.js';
 import { createMainboard } from './scene/mainboard.js';
 
 // ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ const room = buildRoom(scene, { shadowMapSize: quality.shadowMapSize, low: quali
 const plant = createPlant(scene);
 // Vaso principal preso à mesa com fitas: planta em análise (não pode ser pego).
 const analysisTargets = buildAnalysisStraps(scene, {
-  base: new THREE.Vector3(0, TABLE_Y, TABLE_Z), height: 0.2, topRadius: 0.13, bottomRadius: 0.1,
+  base: new THREE.Vector3(0, TABLE_Y, TABLE_Z), height: POT_RIM.height, topRadius: POT_RIM.radius, bottomRadius: SAUCER.radius,
 });
 const dev = createDevices(scene);
 const water = createWater(scene);
@@ -181,7 +181,11 @@ const post = quality.low ? null : createPost(renderer, scene, camera);
 // ---------------------------------------------------------------------------
 // Lógica IoT, som e interação
 // ---------------------------------------------------------------------------
-const soilSensor = new SoilMoistureSensor({ initial: 55 });
+// ?umidade=95 começa com a terra nessa umidade (para testar/demonstrar seco ou encharcado).
+const startMoisture = Number(new URLSearchParams(location.search).get('umidade'));
+const soilSensor = new SoilMoistureSensor({
+  initial: Number.isFinite(startMoisture) && startMoisture > 0 ? Math.min(100, startMoisture) : 55,
+});
 const irrigation = new IrrigationController();
 
 const sound = new SoundManager(camera);
@@ -189,6 +193,7 @@ const pumpHum = sound.create(dev.pump, sound.buffers.hum, { loop: true, volume: 
 const waterSfx = sound.create(plant.pot, sound.buffers.water, { loop: true, volume: 0.8 });
 const alertSfx = sound.create(dev.probe, sound.buffers.alert, { volume: 0.7, refDistance: 0.6 });
 const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8 });
+const waterClick = sound.create(dev.waterButton, sound.buffers.click, { volume: 0.8 });
 
 // Irrigação das bancadas laterais: uma válvula solenoide (com relé) por vaso.
 // Objetos que dá para pegar (PC: modo FPS; VR: gatilho lateral). Os vasos das bancadas entram aqui.
@@ -230,6 +235,17 @@ renderer.xr.addEventListener('sessionstart', () => sound.unlock());
 
 const tmp = new THREE.Vector3();
 
+// Botão REGAR (ao lado da bomba): rega manual por alguns segundos, nos dois modos.
+// Se o sensor detectou água em excesso, a rega é bloqueada e toca o alerta.
+function manualWater() {
+  sound.unlock();
+  dev.pressWaterButton();
+  sound.playOnce(waterClick);
+  const ok = irrigation.requestManualWater();
+  if (!ok) sound.playOnce(alertSfx);
+  return ok;
+}
+
 function toggleMode() {
   irrigation.toggleMode();
   sound.playOnce(clickSfx);
@@ -253,9 +269,10 @@ function onSelect(controller) {
   if (p.distanceTo(dev.MODE_BUTTON_POS) < 0.12) {
     toggleMode();
     haptic(controller, 0.6, 60);
+  } else if (p.distanceTo(dev.WATER_BUTTON_POS) < 0.12) {
+    haptic(controller, manualWater() ? 0.8 : 0.3, 120);
   } else if (dev.proximity.isTriggered(p)) {
-    irrigation.requestManualWater();
-    haptic(controller, 0.8, 120);
+    haptic(controller, manualWater() ? 0.8 : 0.3, 120);
   }
 }
 
@@ -302,9 +319,9 @@ setupDesktopInput({
   renderer,
   camera,
   modeTargets: [dev.modeButton, dev.modeLed],
-  waterTargets: [dev.proxCore, dev.proxHalo],
+  waterTargets: [...dev.waterButton.children, dev.proxCore, dev.proxHalo],
   onToggleMode: toggleMode,
-  onWater: () => irrigation.requestManualWater(),
+  onWater: manualWater,
   // Clique no PC: placas e porta vêm antes dos botões; andar pelo chão só se a opção estiver ligada.
   onPick: (ray) => uiRay(ray, { canWalk: clickWalk.enabled }),
   isBusy: () => Boolean(fps && fps.active),
@@ -322,12 +339,12 @@ fps = new FirstPersonMode({
   infoTargets: [mainboard.group],
   onDrop: snapProbeToPot,
   modeTargets: [dev.modeButton, dev.modeLed],
-  waterTargets: [dev.proxCore, dev.proxHalo],
+  waterTargets: [...dev.waterButton.children, dev.proxCore, dev.proxHalo],
   grabbables,
   can: dev.can,
   potCenter: { x: 0, y: SOIL_Y, z: TABLE_Z },
   onToggleMode: toggleMode,
-  onWater: () => irrigation.requestManualWater(),
+  onWater: manualWater,
   world: {
     ...WORLD,
     // Onde dá para soltar objetos.
@@ -426,7 +443,7 @@ function render() {
   // 5) Visual de acordo com o estado dos "dispositivos".
   const moisture = soilSensor.read();
   plant.update(moisture);
-  dev.updateLeds({ probeIn, moisture, lowThreshold: irrigation.lowThreshold, pumping, mode: irrigation.mode, near });
+  dev.updateLeds({ probeIn, moisture, lowThreshold: irrigation.lowThreshold, pumping, mode: irrigation.mode, near, excess: irrigation.excess, dt });
   mainboard.update(dt, { benchMotors: benchIrrigation.network.motors, pumping });
 
   // 6) Água e som.
@@ -438,15 +455,16 @@ function render() {
   sound.setPlaying(pumpHum, pumping);
   sound.setPlaying(waterSfx, pumping || pouring);
   alertTimer -= dt;
-  if (probeIn && moisture < irrigation.lowThreshold && !pumping && alertTimer <= 0) {
-    sound.playOnce(alertSfx); // alerta de solo seco
+  const dry = probeIn && moisture < irrigation.lowThreshold && !pumping;
+  if ((dry || irrigation.excess) && alertTimer <= 0) {
+    sound.playOnce(alertSfx); // alerta: solo seco ou encharcado
     alertTimer = 4;
   }
 
   panelTimer -= dt;
   if (panelTimer <= 0) {
     panelTimer = 0.2;
-    panel.draw({ moisture, probeIn, pumpOn: pumping, mode: irrigation.mode, near, log: irrigation.log, debugText });
+    panel.draw({ moisture, probeIn, pumpOn: pumping, mode: irrigation.mode, near, excess: irrigation.excess, log: irrigation.log, debugText });
   }
 
   // Zera o contador uma vez por quadro: assim o ?debug soma todas as etapas do

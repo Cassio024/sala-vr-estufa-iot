@@ -72,11 +72,46 @@ test('modo manual: rega pelo tempo configurado e não liga sozinha', () => {
   c.update(0.1, 5);
   assert.equal(c.pumpOn, false, 'solo seco não liga no manual');
   c.requestManualWater();
-  c.update(0.5, 90);
+  c.update(0.5, 60);
   assert.equal(c.pumpOn, true);
-  c.update(0.5, 90);
-  c.update(0.1, 90);
+  c.update(0.5, 60);
+  c.update(0.1, 60);
   assert.equal(c.pumpOn, false, 'desliga depois de 1 s');
+});
+
+test('botão REGAR também funciona no automático e depois volta ao controle automático', () => {
+  const c = new IrrigationController({ manualDurationSec: 1 });
+  c.update(0.1, 60); // 60%: o automático não liga
+  assert.equal(c.pumpOn, false);
+  assert.equal(c.requestManualWater(), true);
+  assert.ok(c.update(0.5, 60) > 0, 'regando');
+  c.update(0.6, 60);
+  c.update(0.1, 60);
+  assert.equal(c.pumpOn, false, 'terminou o tempo: o automático (60% > 35%) não religa');
+});
+
+test('água em excesso: a partir de 90% bloqueia bomba e botão; libera abaixo de 85%', () => {
+  const c = new IrrigationController({ manualDurationSec: 5 });
+  c.requestManualWater();
+  c.update(0.1, 80);
+  assert.equal(c.pumpOn, true);
+  assert.equal(c.update(0.1, 92), 0, 'encharcou: para de regar na hora');
+  assert.equal(c.pumpOn, false);
+  assert.equal(c.excess, true);
+  assert.match(c.log[0], /excesso/);
+  assert.equal(c.requestManualWater(), false, 'botão bloqueado');
+  assert.match(c.log[0], /bloqueada/);
+  c.update(0.1, 87);
+  assert.equal(c.excess, true, 'histerese: 87% ainda é excesso');
+  c.update(0.1, 84);
+  assert.equal(c.excess, false);
+  assert.equal(c.requestManualWater(), true);
+});
+
+test('sensor fora do solo não acusa excesso', () => {
+  const c = new IrrigationController();
+  c.update(0.1, null);
+  assert.equal(c.excess, false);
 });
 
 test('trocar de modo desliga a bomba e registra o evento', () => {

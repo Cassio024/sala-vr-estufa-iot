@@ -36,19 +36,70 @@ export function createDevices(scene) {
   }
 
   // Regador: pegue com o gatilho lateral e incline sobre o vaso para regar.
+  // Origem no centro do corpo (base em y = -0,06); o bico aponta para +x.
   const can = new THREE.Group();
-  const canMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.3, roughness: 0.5 });
-  const canBody = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 20), canMat);
-  const canSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.16, 10), canMat);
-  canSpout.position.set(0.117, 0.047, 0);
-  canSpout.rotation.z = -Math.PI / 4;
-  const canHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 8, 16, Math.PI), canMat);
-  canHandle.position.set(-0.06, 0.02, 0);
-  canHandle.rotation.z = Math.PI / 2;
+  const canMat = new THREE.MeshStandardMaterial({ color: 0x2f9e5b, metalness: 0.35, roughness: 0.35 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x1f6f3f, metalness: 0.4, roughness: 0.4 });
+  const brassMat = new THREE.MeshStandardMaterial({ color: 0xc8a24a, metalness: 0.85, roughness: 0.3 });
+  // Corpo torneado: base arredondada, barriga e ombro que fecha na boca.
+  const profile = [
+    [0, -0.06], [0.052, -0.06], [0.06, -0.054], [0.062, -0.03], [0.062, 0.02],
+    [0.057, 0.045], [0.046, 0.058], [0.038, 0.062], [0.038, 0.066],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const canBody = new THREE.Mesh(new THREE.LatheGeometry(profile, 28), canMat);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.005, 8, 24), trimMat);
+  mouth.rotation.x = Math.PI / 2;
+  mouth.position.y = 0.066;
+  const mouthDark = new THREE.Mesh(new THREE.CircleGeometry(0.036, 20), new THREE.MeshStandardMaterial({ color: 0x0b1f14 }));
+  mouthDark.rotation.x = -Math.PI / 2;
+  mouthDark.position.y = 0.058;
+  // Faixas decorativas.
+  const band1 = new THREE.Mesh(new THREE.TorusGeometry(0.0625, 0.003, 6, 28), trimMat);
+  band1.rotation.x = Math.PI / 2;
+  band1.position.y = -0.035;
+  const band2 = band1.clone();
+  band2.position.y = 0.015;
+  // Alças: uma em cima (arco de frente para trás) e uma atrás (vertical).
+  const topHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 8, 20, Math.PI), canMat);
+  topHandle.position.set(-0.012, 0.058, 0);
+  const backHandle = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.006, 8, 16, Math.PI), canMat);
+  backHandle.rotation.z = Math.PI / 2;
+  backHandle.position.set(-0.062, 0.0, 0);
+  // Bico comprido saindo de baixo, inclinado para cima, com o "chuveirinho" (crivo) de latão.
+  const spoutStart = new THREE.Vector3(0.05, -0.035, 0);
+  const spoutDir = new THREE.Vector3(0.11, 0.115, 0).normalize();
+  const spoutLen = 0.16;
+  const spoutQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), spoutDir);
+  const canSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.012, spoutLen, 12), canMat);
+  canSpout.quaternion.copy(spoutQ);
+  canSpout.position.copy(spoutStart).addScaledVector(spoutDir, spoutLen / 2);
+  const roseC = document.createElement('canvas');
+  roseC.width = roseC.height = 64;
+  const rg = roseC.getContext('2d');
+  rg.fillStyle = '#c8a24a';
+  rg.fillRect(0, 0, 64, 64);
+  rg.fillStyle = '#3b2a0a';
+  for (let r = 0; r < 3; r++) {
+    const n = r === 0 ? 1 : r * 7;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      rg.beginPath();
+      rg.arc(32 + Math.cos(a) * r * 10, 32 + Math.sin(a) * r * 10, 2.2, 0, Math.PI * 2);
+      rg.fill();
+    }
+  }
+  const roseTex = new THREE.CanvasTexture(roseC);
+  roseTex.colorSpace = THREE.SRGBColorSpace;
+  const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.011, 0.024, 16, 1, true), brassMat);
+  rose.quaternion.copy(spoutQ);
+  rose.position.copy(spoutStart).addScaledVector(spoutDir, spoutLen + 0.01);
+  const roseFace = new THREE.Mesh(new THREE.CircleGeometry(0.022, 16), new THREE.MeshStandardMaterial({ map: roseTex, metalness: 0.7, roughness: 0.35 }));
+  roseFace.quaternion.copy(spoutQ).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
+  roseFace.position.copy(spoutStart).addScaledVector(spoutDir, spoutLen + 0.022);
   const canTip = new THREE.Object3D();
-  canTip.position.set(0.173, 0.103, 0);
-  can.add(canBody, canSpout, canHandle, canTip);
-  canBody.castShadow = canSpout.castShadow = true;
+  canTip.position.copy(spoutStart).addScaledVector(spoutDir, spoutLen + 0.024);
+  can.add(canBody, mouth, mouthDark, band1, band2, topHandle, backHandle, canSpout, rose, roseFace, canTip);
+  for (const m of [canBody, topHandle, backHandle, canSpout, rose]) m.castShadow = true;
   can.position.set(-0.2, TABLE_Y + 0.06, TABLE_Z + 0.22);
   can.userData = { baseOffset: 0.06, insertDepth: 0, falling: false, vy: 0, held: null };
   scene.add(can);
@@ -78,6 +129,40 @@ export function createDevices(scene) {
   );
   pumpLed.position.set(PUMP_POS.x, PUMP_POS.y + 0.04, PUMP_POS.z + 0.061);
   scene.add(pumpLed);
+
+  // Botão REGAR (rega manual), na frente da bomba: base amarela, botão azul que afunda ao apertar.
+  const WATER_BUTTON_POS = new THREE.Vector3(PUMP_POS.x, TABLE_Y, PUMP_POS.z + 0.17);
+  const waterButton = new THREE.Group();
+  const wbBase = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.08), new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
+  wbBase.position.y = 0.015;
+  const wbRing = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.008, 20), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+  wbRing.position.y = 0.034;
+  const wbCapMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.35, emissive: 0x000000 });
+  const wbCap = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.018, 20), wbCapMat);
+  wbCap.position.y = 0.046;
+  const wbLabelC = document.createElement('canvas');
+  wbLabelC.width = 256;
+  wbLabelC.height = 64;
+  const wl = wbLabelC.getContext('2d');
+  wl.fillStyle = '#111827';
+  wl.fillRect(0, 0, 256, 64);
+  wl.fillStyle = '#facc15';
+  wl.font = 'bold 44px sans-serif';
+  wl.textAlign = 'center';
+  wl.fillText('💧 REGAR', 128, 48);
+  const wbLabelTex = new THREE.CanvasTexture(wbLabelC);
+  wbLabelTex.colorSpace = THREE.SRGBColorSpace;
+  const wbLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.02), new THREE.MeshBasicMaterial({ map: wbLabelTex }));
+  wbLabel.position.set(0, 0.015, 0.0405);
+  for (const m of [wbBase, wbCap]) m.castShadow = true;
+  waterButton.add(wbBase, wbRing, wbCap, wbLabel);
+  waterButton.position.copy(WATER_BUTTON_POS);
+  scene.add(waterButton);
+  let pressTimer = 0;
+  /** Animação do botão afundando (chamar ao apertar). */
+  function pressWaterButton() {
+    pressTimer = 0.18;
+  }
 
   const SPOUT = new THREE.Vector3(-0.06, TABLE_Y + 0.33, TABLE_Z);
   const tubeMat = new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.5 });
@@ -154,8 +239,18 @@ export function createDevices(scene) {
   }
 
   // Cores dos LEDs e do halo de acordo com o estado dos dispositivos.
-  function updateLeds({ probeIn, moisture, lowThreshold, pumping, mode, near }) {
-    probeLed.material.color.set(!probeIn ? 0x6b7280 : moisture < lowThreshold ? 0xef4444 : 0x22c55e);
+  let blink = 0;
+  function updateLeds({ probeIn, moisture, lowThreshold, pumping, mode, near, excess = false, dt = 0 }) {
+    blink += dt;
+    // LED do sensor: cinza = fora do solo, vermelho = seco, verde = ok,
+    // azul piscando = água em excesso (encharcado).
+    const excessOn = blink % 0.5 < 0.25;
+    probeLed.material.color.set(!probeIn ? 0x6b7280 : excess ? (excessOn ? 0x3b82f6 : 0x0b1a3a) : moisture < lowThreshold ? 0xef4444 : 0x22c55e);
+    // Botão REGAR: afunda quando apertado, acende enquanto rega e fica cinza se bloqueado.
+    if (pressTimer > 0) pressTimer -= dt;
+    wbCap.position.y = pressTimer > 0 ? 0.04 : 0.046;
+    wbCapMat.color.set(excess ? 0x64748b : 0x2563eb);
+    wbCapMat.emissive.set(pumping ? 0x1d4ed8 : 0x000000);
     pumpLed.material.color.set(pumping ? 0x38bdf8 : 0x1f2937);
     modeLed.material.color.set(mode === 'auto' ? 0x22c55e : 0xfacc15);
     proxHalo.material.opacity = near ? 0.35 : 0.1;
@@ -166,6 +261,7 @@ export function createDevices(scene) {
     can, canIsPouring, tipPos,
     pump, SPOUT,
     modeButton, modeLed, MODE_BUTTON_POS,
+    waterButton, WATER_BUTTON_POS, pressWaterButton,
     proximity, proxCore, proxHalo,
     loadModels, updateLeds,
   };

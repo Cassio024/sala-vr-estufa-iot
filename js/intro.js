@@ -42,14 +42,16 @@ export const STATIONS = [
       'Quando a umidade cai abaixo de 35%, a bomba liga e começa a regar.',
       'Ela só desliga quando a terra chega a 70%. Esse intervalo se chama histerese e evita ligar e desligar o tempo todo.',
       'No modo manual a bomba não decide sozinha: você rega quando quiser.',
+      'Se a terra passar de 90% (água em excesso), o sensor avisa e a rega fica bloqueada até secar abaixo de 85%.',
     ],
   },
   {
     x: 1.25, z: 5.6,
     title: 'Interagir na sala',
-    short: 'Use a esfera azul, o botão cinza e o regador.',
+    short: 'Use o botão REGAR, o botão cinza e o regador.',
     full: [
-      'Esfera azul: sensor de proximidade. Com a mão ou o controle perto dela, aperte para regar manualmente.',
+      'Botão azul REGAR (ao lado da bomba): rega manual por alguns segundos.',
+      'Esfera azul: sensor de proximidade. Detecta a mão; com o gatilho perto dela também rega.',
       'Botão cinza: troca entre modo automático e manual.',
       'Regador: pegue com o gatilho lateral e incline sobre o vaso para regar.',
       'Painel na parede: mostra umidade, bomba, modo e os últimos eventos.',

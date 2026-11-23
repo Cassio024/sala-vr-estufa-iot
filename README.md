@@ -12,9 +12,11 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 
 | Item | Função |
 |---|---|
-| Sensor de umidade (haste no vaso) | Lê a umidade do solo (0–100%). Com o tempo, a terra seca sozinha. |
+| Sensor de umidade (haste no vaso) | Lê a umidade do solo (0–100%). Com o tempo, a terra seca sozinha. LED: verde = ok, vermelho = seco, **azul piscando = água em excesso**, cinza = fora do solo. |
+| Água em excesso | Acima de **90%** o sensor acusa solo **encharcado**: a bomba para, o botão REGAR fica bloqueado (cinza), toca um alerta, o painel mostra **⚠ ÁGUA EM EXCESSO**, a água empoça na terra e no pratinho e as folhas amarelam um pouco. Libera quando a terra seca abaixo de 85%. |
 | Bomba d'água + tubo | Liga sozinha quando a umidade cai abaixo de 35% e desliga ao chegar em 70% (modo automático). |
-| Sensor de proximidade (esfera azul) | Dispara quando a mão/controle entra na área azul. Com o gatilho, faz uma rega manual. |
+| Botão REGAR (azul, na frente da bomba) | Rega manual por alguns segundos, no modo automático ou manual. Afunda ao apertar e acende enquanto a bomba rega. |
+| Sensor de proximidade (esfera azul) | Dispara quando a mão/controle entra na área azul. Com o gatilho perto dela também rega. |
 | Botão de modo (caixa cinza) | Alterna entre **automático** e **manual**. |
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
 | Painel das bancadas (perto da porta, à direita) | Escolha **Todas / Esquerda / Direita**, o modo **Automático / Manual**, **💧 Regar agora** (no manual) e **Liberar todos**. A grade mostra os 16 vasos (umidade e estado); **clique num vaso para bloquear ("não regar") ou liberar** a rega dele. Funciona com mouse, mira do modo FPS e raio do controle VR. |
@@ -28,12 +30,12 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 **No headset (VR):**
 - Clique em **Enter VR**.
 - Aponte o controle para o **botão de modo** e aperte o gatilho para trocar entre automático e manual.
-- No modo manual, aponte para a **esfera azul** e aperte o gatilho para regar.
+- Encoste o controle no **botão azul REGAR** (na frente da bomba) e aperte o gatilho para regar.
 
 **No computador (sem headset):**
 - Arraste o mouse para girar a câmera e use a roda para aproximar.
 - Clique no **botão cinza** para trocar o modo.
-- Clique na **esfera azul** para regar (rega manual).
+- Clique no **botão azul REGAR** (na frente da bomba) para regar.
 - Atalhos: `M` troca o modo, `Espaço` rega.
 - **Andar ao clicar no chão:** opção que começa **desligada**. Ligue pelo botão 🚶 no canto inferior esquerdo ou pela tecla `C` (a escolha fica salva no navegador).
 
@@ -45,7 +47,7 @@ O mouse fica preso na tela, como num jogo de tiro em primeira pessoa.
 | `W` `A` `S` `D` / setas | Andar |
 | `Shift` | Correr |
 | Mouse | Olhar em volta |
-| Clique esquerdo | Usar o que está na mira (botão cinza, esfera azul, placas, porta) · pegar o regador ou o sensor · soltar onde estiver mirando |
+| Clique esquerdo | Usar o que está na mira (botão cinza, botão REGAR, placas, porta, painel) · pegar o regador ou o sensor · soltar onde estiver mirando |
 | Botão direito (segurando o regador, mirando o vaso) | Regar |
 | `M` / `Espaço` | Modo auto/manual · rega manual |
 | `Esc` | Sair do modo FPS |
@@ -77,7 +79,7 @@ Para usar no **Meta Quest** (ou outro headset), o jeito mais simples é publicar
 1. No Quest, abra o app **Navegador** (Meta Quest Browser).
 2. Digite `cassio024.github.io/sala-vr-estufa-iot` e espere a sala carregar.
 3. Toque em **ENTER VR** (botão embaixo da página) e permita o acesso à realidade virtual.
-4. Controles: **gatilho** perto do botão cinza troca o modo; perto da esfera azul rega · **gatilho lateral** pega o regador e o sensor · **analógico esquerdo** anda (para onde você está olhando, sem atravessar paredes e móveis) · **analógico direito para os lados** gira 30° · **analógico direito para frente** mira e teletransporta.
+4. Controles: **gatilho** perto do botão cinza troca o modo; perto do botão azul REGAR rega · **gatilho lateral** pega o regador e o sensor · **analógico esquerdo** anda (para onde você está olhando, sem atravessar paredes e móveis) · **analógico direito para os lados** gira 30° · **analógico direito para frente** mira e teletransporta.
 
 Se o botão mostrar **VR NOT SUPPORTED**, o navegador não tem WebXR (use o navegador do Quest, não um app de vídeo). Se mostrar **WEBXR NEEDS HTTPS**, o link foi aberto com `http://` — use o endereço do GitHub Pages, que é HTTPS.
 
@@ -96,7 +98,7 @@ Meta no Quest: **72 a 90 FPS** estáveis.
 | Altura do chão correta | Mesa na altura da cintura | ☐ |
 | FPS ≥ 72 | `?debug`, olhar o painel | ☐ |
 | Gatilho no botão cinza troca o modo | Painel mostra "manual"/"automático" | ☐ |
-| Gatilho na esfera azul rega (modo manual) | Bomba liga, gotas caem | ☐ |
+| Gatilho no botão REGAR rega | Bomba liga, gotas caem | ☐ |
 | Pegar regador e sensor (gatilho lateral) | Objeto segue a mão | ☐ |
 | Andar com o analógico esquerdo (sem atravessar paredes) | Analógico esquerdo | ☐ |
 | Teletransporte e giro | Analógico direito | ☐ |
@@ -127,6 +129,7 @@ Só a bomba (150 mil triângulos) continua pesada demais para o Quest: para usá
 O jardim tinha ~180 objetos clonados, cada um com a própria draw call. Agora cada tipo de planta e a cerca são desenhados com um `InstancedMesh`, então o modo leve mostra o mesmo cenário (árvores, cerca, jardim e plantas nas bancadas), só com menos cópias.
 
 Forçar a qualidade pela URL: `?qualidade=baixa` ou `?qualidade=alta`.
+Começar com a terra numa umidade (para demonstrar seco ou encharcado): `?umidade=20` ou `?umidade=95`.
 
 ![Modo leve com diagnóstico](docs/img/sala-modo-leve.jpg)
 
