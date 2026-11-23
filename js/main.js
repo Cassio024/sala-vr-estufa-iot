@@ -42,6 +42,10 @@ const rig = new THREE.Group();
 scene.add(rig);
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 80);
 camera.position.set(0.6, 1.5, 0.8);
+// ?camera=x,y,z muda a posição inicial no PC (usado para gerar os prints e o GIF do README).
+const camParam = new URLSearchParams(window.location.search).get('camera');
+const camXYZ = camParam ? camParam.split(',').map(Number) : [];
+if (camXYZ.length === 3 && camXYZ.every(Number.isFinite)) camera.position.fromArray(camXYZ);
 rig.add(camera);
 
 const orbit = new OrbitControls(camera, renderer.domElement);

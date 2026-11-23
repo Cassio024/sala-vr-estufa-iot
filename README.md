@@ -4,6 +4,8 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 
 **Acesse:** https://cassio024.github.io/sala-vr-estufa-iot/ (no PC ou no navegador do headset)
 
+![Tour pela sala VR](docs/img/tour.gif)
+
 ![Sala VR no computador](docs/img/sala-pc.jpg)
 
 ## O que tem na sala
