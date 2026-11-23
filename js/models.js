@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
-draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+draco.setDecoderPath('vendor/three/examples/jsm/libs/draco/gltf/'); // local: funciona offline
 loader.setDRACOLoader(draco);
 loader.setMeshoptDecoder(MeshoptDecoder);
 

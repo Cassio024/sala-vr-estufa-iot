@@ -112,6 +112,7 @@ Cobre: histerese da bomba (liga < 35%, desliga em 70%), limites 0–100%, sensor
 
 ```
 index.html            -> página, import map do three.js e botão VR
+vendor/three/          -> three.js 0.170.0 local (só os arquivos usados)
 js/main.js            -> ponto de entrada: junta os módulos e roda o loop principal
 js/sensors.js         -> lógica dos sensores, da bomba e do modo automático (sem three.js)
 js/scene/room.js      -> estufa, bancadas, luminária e mesa
@@ -168,5 +169,5 @@ Os dados da bomba vêm dos metadados do próprio arquivo glTF. Sons e texturas d
 
 ## Tecnologias
 
-- [three.js](https://threejs.org/) 0.170.0 (carregado pelo CDN jsDelivr)
+- [three.js](https://threejs.org/) 0.170.0 — cópia local em `vendor/three` (MIT): a sala funciona **sem internet** e sem depender de CDN
 - WebXR Device API (`VRButton` do three.js)
