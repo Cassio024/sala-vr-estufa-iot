@@ -221,7 +221,7 @@ const panelClick = sound.create(controlPanel.group, sound.buffers.click, { volum
 const mainboard = createMainboard(scene, {
   wallZ: -GREENHOUSE_SIZE / 2,
   benches: benchIrrigation.wiring,
-  pump: new THREE.Vector3(dev.pump.position.x, TABLE_Y + 0.03, dev.pump.position.z - 0.07),
+  pump: dev.PUMP_POWER, // caixa de ligação em cima do motor da bomba
   proximity: dev.proxCore.position,
   probe: dev.probe,
   probeTop: dev.probe.userData.baseOffset,

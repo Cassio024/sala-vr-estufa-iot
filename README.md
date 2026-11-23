@@ -119,7 +119,7 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 | | PC (completa) | Headset (leve) |
 |---|---|---|
 | Planta glTF (Poly Haven comprimida, ~8 mil tri) | sim | sim |
-| Bomba glTF (150 mil tri) | sim | não — forma simples |
+| Bomba d'água | modelo `bomba.glb` (150 mil tri) | **bomba feita por nós** (`js/scene/pump.js`, ~900 tri: motor com aletas, cabeçote, base; vibra ligada) |
 | Árvores (InstancedMesh, 2 draw calls) | 70 | 40 |
 | Jardim: flores, arbustos, grama (InstancedMesh, 1 draw call por tipo) | todas as cópias | metade das cópias |
 | Cerca de madeira em volta do mapa (InstancedMesh, 2 draw calls) | sim | sim |
@@ -132,7 +132,7 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 
 A planta da mesa usava o `planta.glb` (6,3 MB, ~176 mil triângulos, com um vaso próprio que flutuava sobre o vaso da mesa).
 Ela foi trocada pela mesma "Potted Plant 01" da Poly Haven na versão comprimida (`polyhaven/potted_plant_01.glb`: 605 KB, ~8 mil triângulos, só caule e folhas), que agora aparece também no headset.
-Só a bomba (150 mil triângulos) continua pesada demais para o Quest: para usá-la lá, simplificar no Blender (*Decimate* para ~10 mil e texturas de no máximo 1024 px).
+O modelo da bomba (150 mil triângulos) é pesado demais para o Quest, então no headset aparece uma bomba feita por nós com formas simples (`js/scene/pump.js`): cabeçote de inox com entrada e saída, motor azul com aletas, tampa do ventilador, base e caixa de ligação. Ligada, ela vibra e o eixo gira.
 
 O jardim tinha ~180 objetos clonados, cada um com a própria draw call. Agora cada tipo de planta e a cerca são desenhados com um `InstancedMesh`, então o modo leve mostra o mesmo cenário (árvores, cerca, jardim e plantas nas bancadas), só com menos cópias.
 
@@ -167,6 +167,7 @@ js/sensors.js         -> lógica dos sensores, da bomba e do modo automático (s
 js/scene/room.js      -> estufa, bancadas, luminária e mesa
 js/scene/plant.js     -> vaso, solo e planta (murcha quando o solo seca, empoça quando encharca)
 js/scene/fence.js     -> cerca de madeira no limite do mapa
+js/scene/pump.js      -> bomba d'água feita por nós (modo leve / headset)
 js/scene/devices.js   -> sensor, regador, bomba, reservatório, botão de modo, proximidade
 js/scene/surfaces.js  -> onde objetos soltos e gotas pousam (chão, mesa, solo)
 js/scene/water.js     -> gotas de água

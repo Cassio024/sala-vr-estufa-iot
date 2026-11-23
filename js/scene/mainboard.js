@@ -155,7 +155,10 @@ export function createMainboard(scene, { wallZ, benches, pump, proximity, probe,
       v(x, onTop, table.z - 0.025), // sobe pela borda
       v(x, onTop, table.z + lane), // deita no tampo
       v(target.x, onTop, table.z + lane), // corre junto da borda de trás
-      v(target.x, onTop, target.z),
+      // Aparelho alto (ex.: caixa de ligação da bomba): sobe por trás dele antes de chegar.
+      ...(target.y > onTop + 0.02
+        ? [v(target.x, onTop, target.z - 0.06), v(target.x, target.y, target.z - 0.06)]
+        : [v(target.x, onTop, target.z)]),
       target,
     ];
   };

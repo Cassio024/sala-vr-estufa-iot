@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ProximitySensor } from '../sensors.js';
 import { tryLoadModel } from '../models.js';
+import { buildWaterPump, PUMP_PORTS } from './pump.js';
 import { TABLE_Y, TABLE_Z } from './room.js';
 import { SOIL_Y } from './plant.js';
 
@@ -114,21 +115,17 @@ export function createDevices(scene) {
     return overPot && tipPos.y < canPos.y - 0.01; // ponta do bico abaixo do corpo = inclinado
   }
 
-  // Bomba d'água, com LED e tubo até o vaso.
+  // Bomba d'água feita por nós (scene/pump.js), com LED e tubo até o vaso.
+  // No PC ela é trocada pelo modelo bomba.glb (ver loadModels); no headset fica esta.
   const PUMP_POS = new THREE.Vector3(-0.5, TABLE_Y + 0.07, TABLE_Z);
-  const pump = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, 0.14, 0.12),
-    new THREE.MeshStandardMaterial({ color: 0x374151, metalness: 0.4, roughness: 0.5 })
-  );
-  pump.position.copy(PUMP_POS);
-  pump.castShadow = true;
+  const pumpModel = buildWaterPump();
+  const pump = pumpModel.group;
+  pump.position.set(PUMP_POS.x, TABLE_Y, PUMP_POS.z);
   scene.add(pump);
-  const pumpLed = new THREE.Mesh(
-    new THREE.SphereGeometry(0.012, 12, 8),
-    new THREE.MeshBasicMaterial({ color: 0x1f2937 })
-  );
-  pumpLed.position.set(PUMP_POS.x, PUMP_POS.y + 0.04, PUMP_POS.z + 0.061);
-  scene.add(pumpLed);
+  let pumpLed = pumpModel.led;
+  const portWorld = (p) => p.clone().add(pump.position); // a bomba não gira: só soma a posição
+  const PUMP_INLET = portWorld(PUMP_PORTS.inlet);
+  const PUMP_OUTLET = portWorld(PUMP_PORTS.outlet);
 
   // Botão REGAR (rega manual), na frente da bomba: base amarela, botão azul que afunda ao apertar.
   const WATER_BUTTON_POS = new THREE.Vector3(PUMP_POS.x, TABLE_Y, PUMP_POS.z + 0.17);
@@ -167,7 +164,8 @@ export function createDevices(scene) {
   const SPOUT = new THREE.Vector3(-0.06, TABLE_Y + 0.33, TABLE_Z);
   const tubeMat = new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.5 });
   const tubeCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(PUMP_POS.x, PUMP_POS.y + 0.07, PUMP_POS.z),
+    PUMP_OUTLET,
+    PUMP_OUTLET.clone().setY(PUMP_OUTLET.y + 0.06), // sai da bomba para cima
     new THREE.Vector3(-0.35, TABLE_Y + 0.28, TABLE_Z),
     new THREE.Vector3(-0.18, TABLE_Y + 0.34, TABLE_Z),
     SPOUT,
@@ -191,8 +189,9 @@ export function createDevices(scene) {
     new THREE.Vector3(TANK_X, 0.5, TABLE_Z),
     new THREE.Vector3(TANK_X, 0.95, TABLE_Z),
     new THREE.Vector3(-0.85, 0.98, TABLE_Z),
-    new THREE.Vector3(-0.62, TABLE_Y + 0.13, TABLE_Z),
-    new THREE.Vector3(PUMP_POS.x - 0.09, TABLE_Y + 0.1, TABLE_Z),
+    new THREE.Vector3(-0.68, TABLE_Y + 0.1, TABLE_Z),
+    PUMP_INLET.clone().setX(PUMP_INLET.x - 0.03), // chega reto na entrada da bomba
+    PUMP_INLET,
   ]);
   scene.add(new THREE.Mesh(new THREE.TubeGeometry(inletCurve, 48, 0.012, 8, false), tubeMat));
 
@@ -227,7 +226,8 @@ export function createDevices(scene) {
   proxHalo.position.copy(PROX_POS);
   scene.add(proxHalo);
 
-  // Bomba em glTF (~150 mil triângulos): só carrega no modo completo.
+  // Bomba em glTF (~150 mil triângulos): só carrega no modo completo (PC).
+  // No modo leve (headset) fica a bomba feita por nós.
   function loadModels({ loadHeavy }) {
     if (!loadHeavy) return;
     tryLoadModel('assets/models/bomba.glb', { height: 0.14 }).then((m) => {
@@ -235,6 +235,10 @@ export function createDevices(scene) {
       pump.visible = false;
       m.position.set(PUMP_POS.x, TABLE_Y, PUMP_POS.z);
       scene.add(m);
+      // LED solto na frente do modelo (o da nossa bomba some junto com ela).
+      pumpLed = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), new THREE.MeshBasicMaterial({ color: 0x1f2937 }));
+      pumpLed.position.set(PUMP_POS.x, PUMP_POS.y + 0.04, PUMP_POS.z + 0.061);
+      scene.add(pumpLed);
     });
   }
 
@@ -252,6 +256,7 @@ export function createDevices(scene) {
     wbCapMat.color.set(excess ? 0x64748b : 0x2563eb);
     wbCapMat.emissive.set(pumping ? 0x1d4ed8 : 0x000000);
     pumpLed.material.color.set(pumping ? 0x38bdf8 : 0x1f2937);
+    if (pump.visible) pumpModel.update(dt, pumping); // vibra e gira o eixo quando ligada
     modeLed.material.color.set(mode === 'auto' ? 0x22c55e : 0xfacc15);
     proxHalo.material.opacity = near ? 0.35 : 0.1;
   }
@@ -259,7 +264,7 @@ export function createDevices(scene) {
   return {
     probe, probeInSoil,
     can, canIsPouring, tipPos,
-    pump, SPOUT,
+    pump, SPOUT, PUMP_POWER: portWorld(PUMP_PORTS.power),
     modeButton, modeLed, MODE_BUTTON_POS,
     waterButton, WATER_BUTTON_POS, pressWaterButton,
     proximity, proxCore, proxHalo,
