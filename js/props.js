@@ -99,20 +99,9 @@ export function buildGarden(scene) {
     scatterProp(scene, 'shrub_04', 7, { ...area, minR: 8, height: 0.9 }),
     scatterProp(scene, 'fern_02', 8, { ...area, height: 0.5 }),
     scatterProp(scene, 'calathea_orbifolia_01', 6, { ...area, height: 0.4 }),
-    // Árvores reais (Poly Haven). Cada tipo isolado: se um falhar, os outros seguem.
-    ...[
-      ['island_tree_02', 3, 8],
-      ['island_tree_03', 3, 8],
-      ['pine_tree_01', 3, 10],
-      ['fir_sapling_medium', 4, 3.5],
-    ].map(([name, count, h]) =>
-      scatterProp(scene, name, count, { minR: 12, maxR: 30, avoid, height: h, castShadow: true })
-        .catch((err) => console.warn(`[árvores] ${name} não carregou:`, err))),
     // Vasos com plantas na entrada.
     placeProp(scene, 'potted_plant_01', -1.6, 5.3, { height: 0.75 }),
     placeProp(scene, 'potted_plant_01', 1.6, 5.3, { height: 0.75, rotY: 1 }),
-    placeProp(scene, 'planter_pot_clay', -2.3, 6.1, { height: 0.35 }),
-    placeProp(scene, 'planter_pot_clay', 2.3, 6.1, { height: 0.35, rotY: 0.6 }),
     // Cerca de tela em volta do jardim.
     buildFence(scene, 'modular_chainlink_fence', { from: { x: -22, z: -20 }, to: { x: 22, z: -20 } }),
     buildFence(scene, 'modular_chainlink_fence', { from: { x: -22, z: -20 }, to: { x: -22, z: 20 } }),
