@@ -2,6 +2,7 @@
 //   Seleção: Todas / Esquerda / Direita
 //   Modo da seleção: Automático / Manual
 //   Regar agora (manual) · Liberar todos
+//   Limites do automático: "Regar abaixo de" e "Parar em" (− / +, de 5 em 5%)
 //   Grade com os 16 vasos: umidade e estado; clique num vaso = bloquear/liberar a rega
 // Funciona com o mouse (PC), com a mira do modo FPS e com o raio do controle VR:
 // o ponto acertado na tela vira uma coordenada no canvas e acha o botão.
@@ -109,6 +110,18 @@ export class ControlPanel {
     this.event(`Bancadas (${this.selection.label}): todos os vasos liberados`);
   }
 
+  /** Muda um limite do automático ('low' ou 'target') da seleção em "delta" %. */
+  changeLimit(key, delta) {
+    let applied = null;
+    for (const g of this.selectedGroups()) {
+      const cur = this.network.limits[g];
+      applied = this.network.setLimits(g, { ...cur, [key]: cur[key] + delta });
+    }
+    if (applied) {
+      this.event(`Bancadas (${this.selection.label}): regar abaixo de ${applied.low}% e parar em ${applied.target}%`);
+    }
+  }
+
   togglePot(i) {
     const on = this.network.toggleEnabled(i);
     this.event(`Vaso ${this.slots[i].label}: ${on ? 'rega liberada' : 'NÃO regar (bloqueado)'}`);
@@ -197,6 +210,24 @@ export class ControlPanel {
     const anyManual = modes.some((m) => m === 'manual');
     this.button('regar', 200, 240, 280, 52, '💧 Regar agora', { disabled: !anyManual, color: '#0369a1', active: anyManual }, () => this.waterNow());
     this.button('liberar', 500, 240, 280, 52, 'Liberar todos', {}, () => this.releaseAll());
+    // Limites do automático (coluna da direita). Com Todas e as bancadas diferentes,
+    // mostra os da esquerda; o clique aplica a todas as selecionadas.
+    const lim = net.limits[this.selectedGroups()[0]];
+    const limitRow = (key, title, y, color) => {
+      g.fillStyle = '#cbd5e1';
+      g.font = 'bold 21px sans-serif';
+      g.fillText(title, 808, y - 8);
+      this.button(`${key}-menos`, 808, y, 52, 52, '−', {}, () => this.changeLimit(key, -5));
+      g.fillStyle = color;
+      g.font = 'bold 34px sans-serif';
+      g.textAlign = 'center';
+      g.fillText(`${lim[key]}%`, 904, y + 38);
+      g.textAlign = 'left';
+      this.button(`${key}-mais`, 948, y, 52, 52, '+', {}, () => this.changeLimit(key, 5));
+    };
+    limitRow('low', 'Regar abaixo de', 126, '#f87171');
+    limitRow('target', 'Parar em', 228, '#4ade80');
+
     g.font = '20px sans-serif';
     g.fillStyle = '#64748b';
     g.fillText(anyManual ? 'Regar agora abre as válvulas liberadas por alguns segundos.' : 'Para regar na hora, escolha o modo Manual.', 200, 322);
@@ -209,7 +240,9 @@ export class ControlPanel {
       const y0 = 360 + r * (ch + 46);
       g.fillStyle = '#cbd5e1';
       g.font = 'bold 24px sans-serif';
-      g.fillText(r === 0 ? `Bancada esquerda · ${net.modes[0] === 'auto' ? 'automático' : 'manual'}` : `Bancada direita · ${net.modes[1] === 'auto' ? 'automático' : 'manual'}`, 36, y0 - 10);
+      const lm = net.limits[r];
+      const modeTxt = net.modes[r] === 'auto' ? `automático · rega abaixo de ${lm.low}% e para em ${lm.target}%` : 'manual';
+      g.fillText(`Bancada ${r === 0 ? 'esquerda' : 'direita'} · ${modeTxt}`, 36, y0 - 10);
       idx.forEach((i, k) => {
         const v = net.valves[i];
         const x = 36 + k * (cw + 18);

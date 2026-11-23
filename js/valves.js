@@ -43,6 +43,26 @@ export class ValveNetwork {
     const groupCount = Math.max(-1, ...groups) + 1;
     this.motors = Array.from({ length: groupCount }, () => false);
     this.modes = Array.from({ length: groupCount }, () => 'auto');
+    // Limites do automático por bancada (ajustáveis no painel): rega abaixo de "low"
+    // e para ao chegar em "target".
+    this.limits = Array.from({ length: groupCount }, () => ({ low: 35, target: 70 }));
+  }
+
+  /**
+   * Muda os limites do automático de uma bancada. Valores em %, ajustados para
+   * ficarem válidos: low entre 10 e target - 10; target entre low + 10 e 85
+   * (acima disso o solo já conta como encharcado). Retorna os limites aplicados.
+   */
+  setLimits(group, { low = this.limits[group].low, target = this.limits[group].target } = {}) {
+    target = Math.min(85, Math.max(20, target));
+    low = Math.min(target - 10, Math.max(10, low));
+    this.limits[group] = { low, target };
+    for (const v of this.valves) {
+      if (v.group !== group) continue;
+      v.relay.lowThreshold = low;
+      v.relay.targetLevel = target;
+    }
+    return this.limits[group];
   }
 
   /** Diz qual vaso está embaixo da válvula (null = nenhum). */

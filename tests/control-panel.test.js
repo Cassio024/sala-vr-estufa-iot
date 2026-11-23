@@ -80,3 +80,31 @@ test('clique fora dos botões não faz nada, mas não "vaza" para o que está at
   assert.equal(click(5, 5), true);
   assert.deepEqual(net.modes, ['auto', 'auto']);
 });
+
+test('limites do automático: + / − mudam "regar abaixo de" e "parar em" da seleção', () => {
+  const { net, click, center, events } = setup();
+  click(...center('sel-dir'));
+  click(...center('low-mais'));
+  click(...center('low-mais'));
+  assert.deepEqual(net.limits[1], { low: 45, target: 70 }, 'direita: 35 -> 45');
+  assert.deepEqual(net.limits[0], { low: 35, target: 70 }, 'esquerda não muda');
+  click(...center('target-menos'));
+  assert.deepEqual(net.limits[1], { low: 45, target: 65 });
+  assert.match(events.at(-1), /45%.*65%/);
+  // A válvula usa o novo limite: vaso com 40% (abaixo de 45%) abre na direita.
+  net.pots[8].sensor.value = 40;
+  net.pots[0].sensor.value = 40;
+  net.update(0.1);
+  assert.equal(net.valves[8].open, true, 'direita abre com 40% < 45%');
+  assert.equal(net.valves[0].open, false, 'esquerda (limite 35%) não abre com 40%');
+});
+
+test('limites ficam sempre válidos (pelo menos 10% entre eles, até 85%)', () => {
+  const { net, click, center } = setup();
+  for (let i = 0; i < 20; i++) click(...center('low-mais'));
+  assert.deepEqual(net.limits[0], { low: 60, target: 70 }, 'regar abaixo de para 10% antes do "parar em"');
+  for (let i = 0; i < 20; i++) click(...center('target-mais'));
+  assert.equal(net.limits[0].target, 85, 'parar em no máximo 85% (90% já é encharcado)');
+  for (let i = 0; i < 30; i++) click(...center('target-menos'));
+  assert.deepEqual(net.limits[0], { low: 10, target: 20 });
+});
