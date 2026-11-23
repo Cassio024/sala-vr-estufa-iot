@@ -4,3 +4,6 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+# Material pessoal de instruções (não vai para o repositório)
+Intrucoes/
