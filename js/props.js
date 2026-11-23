@@ -94,9 +94,8 @@ export function buildGarden(scene) {
     scatterProp(scene, 'dandelion_01', 12, { ...area, height: 0.25 }),
     scatterProp(scene, 'flower_heliophila', 10, { ...area, height: 0.3 }),
     scatterProp(scene, 'shrub_01', 9, { ...area, minR: 8, height: 1.1 }),
-    scatterProp(scene, 'shrub_02', 7, { ...area, minR: 8, height: 0.9 }),
-    scatterProp(scene, 'shrub_03', 7, { ...area, minR: 8, height: 0.9 }),
-    scatterProp(scene, 'shrub_04', 7, { ...area, minR: 8, height: 0.9 }),
+    scatterProp(scene, 'shrub_03', 10, { ...area, minR: 8, height: 0.9 }),
+    scatterProp(scene, 'shrub_04', 11, { ...area, minR: 8, height: 0.9 }),
     scatterProp(scene, 'fern_02', 8, { ...area, height: 0.5 }),
     scatterProp(scene, 'calathea_orbifolia_01', 6, { ...area, height: 0.4 }),
     // Vasos com plantas na entrada.

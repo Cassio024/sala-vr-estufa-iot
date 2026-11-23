@@ -23,7 +23,7 @@ Texturas com cor, normal e rugosidade (ambientCG / Poly Haven).
 
 ### Modelos glTF no lugar das formas simples
 Vaso, planta, bomba e plantas do jardim em glTF.
-**Coluna:** Feito, mas a bomba (150 mil triângulos) e a planta (176 mil) são pesadas demais para o Quest — ver issue de desempenho.
+**Coluna:** Feito. A planta agora é a versão comprimida da Poly Haven (~8 mil triângulos); só a bomba (150 mil) ainda é pesada demais para o Quest.
 
 ### Ambiente completo de estufa
 Estrutura de vidro, bancadas com várias plantas, reservatório ligado à bomba, jardim e entrada.
@@ -51,11 +51,11 @@ Mudar a cor da luz e do céu com o tempo e mostrar a leitura do LDR.
 
 ### [bug] shrub_02.glb está vazio
 `assets/models/polyhaven/shrub_02.glb` tem 132 bytes e nenhum objeto: os 7 arbustos desse tipo não aparecem no jardim. Exportar de novo ou remover a linha em `js/props.js`.
-**Coluna:** A fazer · label `bug`
+**Coluna:** Feito — arquivo removido; shrub_03 e shrub_04 ganharam mais cópias no lugar · label `bug`
 
 ### [bug] Vaso flutuando em cima do vaso da mesa (modo completo)
 O `planta.glb` já vem com um vaso próprio, que aparece em cima do vaso da mesa. Usar um modelo sem vaso ou esconder o vaso simples.
-**Coluna:** A fazer · label `bug`
+**Coluna:** Feito — trocado por `polyhaven/potted_plant_01.glb` (sem vaso, ~8 mil triângulos) · label `bug`
 
 ---
 
@@ -137,8 +137,8 @@ Medido: ~61 draw calls no modo leve.
 Abrir `https://cassio024.github.io/sala-vr-estufa-iot/?debug` no navegador do Quest e confirmar 72–90 FPS. Preencher o checklist de VR do README.
 **Coluna:** A fazer (precisa do headset)
 
-### Simplificar bomba.glb e planta.glb
-Blender → Decimate para ~10 mil triângulos cada e texturas de até 1024 px, para poderem aparecer também no Quest.
+### Simplificar bomba.glb
+Blender → Decimate para ~10 mil triângulos e texturas de até 1024 px, para aparecer também no Quest. (A planta já foi resolvida com a versão comprimida da Poly Haven.)
 **Coluna:** A fazer
 
 ### Testes unitários da lógica (sensors.js)

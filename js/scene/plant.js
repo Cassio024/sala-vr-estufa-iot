@@ -40,6 +40,7 @@ export function createPlant(scene) {
   stem.position.y = 0.15;
   plant.add(stem);
 
+  const simpleLeaves = [];
   for (let i = 0; i < 6; i++) {
     const angle = (i / 6) * Math.PI * 2;
     const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), leafMat);
@@ -48,27 +49,39 @@ export function createPlant(scene) {
     leaf.rotation.y = -angle;
     leaf.castShadow = true;
     plant.add(leaf);
+    simpleLeaves.push(leaf);
   }
 
-  let plantModel = null;
   let plantTint = null;
 
-  // Troca as formas simples por glTF, se existirem. A planta glTF é pesada
-  // (~176 mil triângulos), por isso só carrega quando loadHeavy = true.
-  function loadModels({ loadHeavy }) {
+  // Troca as formas simples por glTF, se existirem.
+  // As folhas vêm da "Potted Plant 01" da Poly Haven na versão comprimida (Meshopt,
+  // ~600 KB, ~6,5 mil triângulos de folhas): é leve, então carrega também no modo
+  // leve (Quest). Nesse arquivo o vaso, as pedrinhas e o caule são uma malha só
+  // ("base"); ela é descartada (senão aparece um segundo vaso em cima do vaso da
+  // mesa) e o caule simples continua no lugar.
+  function loadModels() {
     tryLoadModel('assets/models/vaso.glb', { height: POT_HEIGHT }).then((m) => {
       if (!m) return;
       pot.visible = false;
       m.position.set(0, TABLE_Y, TABLE_Z);
       scene.add(m);
     });
-    if (!loadHeavy) return;
-    tryLoadModel('assets/models/planta.glb', { height: 0.35 }).then((m) => {
+    tryLoadModel('assets/models/polyhaven/potted_plant_01.glb').then((m) => {
       if (!m) return;
-      plant.visible = false;
-      m.position.set(0, SOIL_Y, TABLE_Z);
-      scene.add(m);
-      plantModel = m;
+      const drop = [];
+      m.traverse((o) => { if (o.isMesh && !/leaves/i.test(o.name)) drop.push(o); });
+      drop.forEach((o) => o.removeFromParent());
+      const box = new THREE.Box3().setFromObject(m);
+      if (box.isEmpty()) return; // arquivo diferente do esperado: fica a planta simples
+      const size = box.getSize(new THREE.Vector3());
+      // Folhas de 0,33 m de altura, começando 2 cm acima da terra (topo ~0,35 m).
+      const k = 0.33 / size.y;
+      const center = box.getCenter(new THREE.Vector3());
+      m.scale.setScalar(k);
+      m.position.set(-center.x * k, 0.02 - box.min.y * k, -center.z * k);
+      plant.add(m); // dentro do grupo da planta: murcha (escala Y) junto com o caule
+      simpleLeaves.forEach((l) => { l.visible = false; });
       plantTint = makeTintable(m);
     });
   }
@@ -82,7 +95,7 @@ export function createPlant(scene) {
     const health = THREE.MathUtils.clamp(moisture / DRY_LEAF_LEVEL, 0, 1);
     if (plantTint) tint(plantTint, LEAF_DRY, 1 - health);
     else leafMat.color.copy(LEAF_DRY).lerp(LEAF_HEALTHY, health);
-    (plantModel || plant).scale.y = 0.85 + 0.15 * health;
+    plant.scale.y = 0.85 + 0.15 * health;
   }
 
   return { pot, loadModels, update };

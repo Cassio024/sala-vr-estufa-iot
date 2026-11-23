@@ -102,15 +102,17 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 
 | | PC (completa) | Headset (leve) |
 |---|---|---|
-| Modelos glTF (bomba, planta) | sim | não — formas simples |
-| Triângulos na cena | ~350 mil (21 mil + 326 mil dos modelos) | **~21 mil** (medido) |
+| Planta glTF (Poly Haven comprimida, ~8 mil tri) | sim | sim |
+| Bomba glTF (150 mil tri) | sim | não — forma simples |
+| Triângulos na cena | ~180 mil (bomba 150 mil + planta 8 mil + cena) | ~30 mil |
 | Draw calls | ~85 | 65 (medido) |
 | Sombra (1 luz só) | 2048 px | 1024 px |
 | `setPixelRatio` | até 1,5 | 1 |
 | Renderização foveada | `setFoveation(1)` | `setFoveation(1)` |
 
-Os dois modelos glTF somam **~326 mil triângulos** (bomba 150 mil, planta 176 mil), acima da meta de ~100 mil para o Quest.
-Para usá-los também no headset, eles precisam ser simplificados (ex.: Blender → *Decimate* para ~10 mil cada, e texturas de no máximo 1024 px).
+A planta da mesa usava o `planta.glb` (6,3 MB, ~176 mil triângulos, com um vaso próprio que flutuava sobre o vaso da mesa).
+Ela foi trocada pela mesma "Potted Plant 01" da Poly Haven na versão comprimida (`polyhaven/potted_plant_01.glb`: 605 KB, ~8 mil triângulos, só caule e folhas), que agora aparece também no headset.
+Só a bomba (150 mil triângulos) continua pesada demais para o Quest: para usá-la lá, simplificar no Blender (*Decimate* para ~10 mil e texturas de no máximo 1024 px).
 
 Forçar a qualidade pela URL: `?qualidade=baixa` ou `?qualidade=alta`.
 
@@ -192,8 +194,7 @@ bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
 | Arquivo | Origem | Autor | Licença |
 |---|---|---|---|
 | `assets/models/bomba.glb` | [Water Pump — Sketchfab](https://sketchfab.com/3d-models/water-pump-76ca12fd7aec4748b96445892b1a5d95) | [OOtis_Pro](https://sketchfab.com/Mohit.Lodhi) | [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/) (exige crédito) |
-| `assets/models/planta.glb` | "Potted Plant 01" — provavelmente [Poly Haven](https://polyhaven.com/a/potted_plant_01) *(a confirmar)* | Poly Haven | CC0 *(a confirmar)* |
-| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores, cerca) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01–04, flower_gazania/ursinia/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay, modular_chainlink_fence | Poly Haven | CC0 (uso livre) |
+| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores, cerca) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/ursinia/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay, modular_chainlink_fence | Poly Haven | CC0 (uso livre) |
 | `assets/textures/casca/*` | [bark_brown_02](https://polyhaven.com/a/bark_brown_02) | Poly Haven | CC0 |
 | `assets/textures/pedras/*` | [cobblestone_floor_02](https://polyhaven.com/a/cobblestone_floor_02) | Poly Haven | CC0 |
 | `assets/textures/grama/normal.jpg` | [grass_ground](https://polyhaven.com/a/grass_ground) (só o relevo; a cor é gerada por código) | Poly Haven | CC0 |

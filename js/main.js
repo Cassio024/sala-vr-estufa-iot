@@ -145,7 +145,7 @@ const water = createWater(scene);
 const panel = createPanel(scene, new THREE.Vector3(0, 1.5, TABLE_Z - 0.55));
 
 // Bomba e planta em glTF são pesadas (~326 mil triângulos juntas): no headset standalone ficam as formas simples.
-plant.loadModels({ loadHeavy: quality.loadHeavyModels });
+plant.loadModels();
 dev.loadModels({ loadHeavy: quality.loadHeavyModels });
 
 // Caminho de entrada com placas explicativas (fora da estufa).
