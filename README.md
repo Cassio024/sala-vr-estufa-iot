@@ -111,16 +111,23 @@ Cobre: histerese da bomba (liga < 35%, desliga em 70%), limites 0–100%, sensor
 ## Estrutura
 
 ```
-index.html          -> página, import map do three.js e botão VR
-js/main.js          -> cena, dispositivos, painel e loop principal
-js/sensors.js       -> lógica dos sensores, da bomba e do modo automático
-js/environment.js   -> renderer, HDRI, materiais PBR, estufa, bancadas, luminária
-js/interaction.js   -> controles VR: pegar objetos, teletransporte, giro, vibração
-js/audio.js         -> sons espaciais gerados por código
-js/models.js        -> carregamento de modelos glTF (com fallback)
-js/quality.js       -> modo leve para headset, medidor de FPS e diagnóstico (?debug)
-tests/              -> testes da lógica (npm test)
-assets/             -> HDRI, texturas e modelos
+index.html            -> página, import map do three.js e botão VR
+js/main.js            -> ponto de entrada: junta os módulos e roda o loop principal
+js/sensors.js         -> lógica dos sensores, da bomba e do modo automático (sem three.js)
+js/scene/room.js      -> estufa, bancadas, luminária e mesa
+js/scene/plant.js     -> vaso, solo e planta (murcha quando o solo seca)
+js/scene/devices.js   -> sensor, regador, bomba, reservatório, botão de modo, proximidade
+js/scene/surfaces.js  -> onde objetos soltos e gotas pousam (chão, mesa, solo)
+js/scene/water.js     -> gotas de água
+js/ui/panel.js        -> painel de status
+js/input.js           -> mouse e teclado (PC)
+js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
+js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa
+js/audio.js           -> sons espaciais gerados por código
+js/models.js          -> carregamento de modelos glTF (com fallback)
+js/quality.js         -> modo leve para headset, medidor de FPS e diagnóstico (?debug)
+tests/                -> testes da lógica (npm test)
+assets/               -> HDRI, texturas e modelos
 firmware/           -> firmware do ESP32 (Wokwi)
 ```
 

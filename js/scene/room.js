@@ -1,0 +1,28 @@
+// Estufa, bancadas, luminária e mesa (posições usadas pelo resto da cena).
+import * as THREE from 'three';
+import { pbrMaterial, buildGreenhouse, buildBenches, buildLamp } from '../environment.js';
+
+export const GREENHOUSE_SIZE = 8;
+export const TABLE_Y = 0.78; // altura da superfície da mesa
+export const TABLE_Z = -1;
+
+export function buildRoom(scene, { shadowMapSize }) {
+  const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3, shadowMapSize });
+  buildBenches(scene, GREENHOUSE_SIZE);
+  buildLamp(scene, 0, TABLE_Z, greenhouse.roofY(TABLE_Z) - 0.05);
+
+  const woodMat = pbrMaterial('madeira', { fallback: 'wood', roughness: 0.7 });
+  const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.7), woodMat);
+  tableTop.position.set(0, TABLE_Y - 0.03, TABLE_Z);
+  tableTop.castShadow = true;
+  tableTop.receiveShadow = true;
+  scene.add(tableTop);
+
+  for (const [x, dz] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, TABLE_Y, 0.06), woodMat);
+    leg.position.set(x, TABLE_Y / 2, TABLE_Z + dz);
+    leg.castShadow = true;
+    scene.add(leg);
+  }
+  return greenhouse;
+}
