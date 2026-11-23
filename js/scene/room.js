@@ -8,7 +8,7 @@ export const TABLE_Z = -1;
 
 // Devolve o que o resto da cena precisa: a porta (para a animação), as posições
 // dos vasos das bancadas e as árvores (para sombras de contato e vento).
-// No modo leve (headset standalone) o cenário externo fica de fora.
+// No modo leve (headset standalone) vão menos árvores (todas num InstancedMesh: 2 draw calls).
 export function buildRoom(scene, { shadowMapSize, low = false }) {
   const greenhouse = buildGreenhouse(scene, { size: GREENHOUSE_SIZE, height: 3, shadowMapSize });
   const benchSpots = buildBenches(scene, GREENHOUSE_SIZE);
@@ -28,6 +28,6 @@ export function buildRoom(scene, { shadowMapSize, low = false }) {
     scene.add(leg);
   }
 
-  const outdoor = low ? null : buildOutdoorScenery(scene);
+  const outdoor = buildOutdoorScenery(scene, low ? { count: 40 } : {});
   return { greenhouse, benchSpots, outdoor, tableTop };
 }

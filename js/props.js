@@ -48,8 +48,50 @@ export async function placeProp(scene, name, x, z, { height = null, rotY = 0, sc
   return obj;
 }
 
-// Espalha várias cópias de um objeto dentro de uma área (círculos fora de "avoid").
-export async function scatterProp(scene, name, count, { minR, maxR, avoid = null, height, rnd = Math.random, castShadow = false }) {
+// Desenha muitas cópias do mesmo modelo com InstancedMesh: uma draw call por malha do
+// modelo, em vez de uma por cópia (o jardim tem ~180 objetos; sem isso seriam ~180
+// draw calls, pesado demais para o Quest).
+// placements: [{ x, z, height?, scale?, rotY?, baseY? }] — mesmas regras do placeProp.
+export async function instanceProp(scene, name, placements, { castShadow = false } = {}) {
+  if (!placements.length) return [];
+  const base = await load(name);
+  base.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(base);
+  if (box.isEmpty()) return [];
+  const size = box.getSize(new THREE.Vector3());
+
+  // Matriz de cada cópia (escala → assenta a base em baseY → gira → posiciona).
+  const d = new THREE.Object3D();
+  const matrices = placements.map((p) => {
+    const k = p.height ? p.height / Math.max(size.y, 0.001) : (p.scale ?? 1);
+    d.position.set(p.x, (p.baseY ?? 0) - box.min.y * k, p.z);
+    d.rotation.set(0, p.rotY ?? 0, 0);
+    d.scale.setScalar(k);
+    d.updateMatrix();
+    return d.matrix.clone();
+  });
+
+  const meshes = [];
+  const m = new THREE.Matrix4();
+  base.traverse((o) => {
+    if (!o.isMesh) return;
+    const inst = new THREE.InstancedMesh(o.geometry, o.material, matrices.length);
+    matrices.forEach((mat, i) => inst.setMatrixAt(i, m.multiplyMatrices(mat, o.matrixWorld)));
+    inst.instanceMatrix.needsUpdate = true;
+    inst.computeBoundingSphere(); // recorte (frustum culling) considera todas as cópias
+    inst.castShadow = castShadow;
+    inst.receiveShadow = true;
+    meshes.push(inst);
+  });
+  meshes.forEach((x) => scene.add(x));
+  return meshes;
+}
+
+// Sorteia posições dentro de um anel (minR..maxR), fora das áreas de "avoid".
+// avoid(x, z, r) recebe o raio "r" que a cópia ocupa no chão: vários modelos da
+// Poly Haven (grama, dente-de-leão...) trazem uma fileira de variações com 2–3 m de
+// largura, e só o centro não basta para mantê-los fora da estufa.
+function scatterSpots(count, { minR, maxR, avoid = null, height, footprint = 0, rnd = Math.random }) {
   const placed = [];
   let tries = 0;
   while (placed.length < count && tries < count * 20) {
@@ -58,13 +100,22 @@ export async function scatterProp(scene, name, count, { minR, maxR, avoid = null
     const r = minR + rnd() * (maxR - minR);
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
-    if (avoid && avoid(x, z)) continue;
-    placed.push({ x, z });
+    const h = height * (0.8 + rnd() * 0.4);
+    if (avoid && avoid(x, z, footprint * h)) continue;
+    placed.push({ x, z, height: h, rotY: rnd() * Math.PI * 2 });
   }
-  for (const p of placed) {
-    await placeProp(scene, name, p.x, p.z, { height: height * (0.8 + rnd() * 0.4), rotY: rnd() * Math.PI * 2, castShadow });
-  }
-  return placed.length;
+  return placed;
+}
+
+// Espalha várias cópias de um objeto dentro de uma área (círculos fora de "avoid").
+export async function scatterProp(scene, name, count, { castShadow = false, ...area }) {
+  const base = await load(name);
+  const size = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3());
+  // Raio no chão por metro de altura (metade da maior largura).
+  const footprint = Math.max(size.x, size.z) / 2 / Math.max(size.y, 0.001);
+  const spots = scatterSpots(count, { ...area, footprint });
+  await instanceProp(scene, name, spots, { castShadow });
+  return spots.length;
 }
 
 // Plantas reais nas bancadas da estufa. "spots" vem de buildBenches (posição de cada vaso).
@@ -79,13 +130,17 @@ export function buildGreenhousePlants(scene, spots) {
 
 // Jardim completo: flores, grama, arbustos, samambaias, vasos perto da porta e cerca.
 // Áreas da estufa e do caminho ficam livres.
-export function buildGarden(scene) {
-  const inGreenhouse = (x, z) => Math.abs(x) < 5 && Math.abs(z) < 5;
-  const onPath = (x, z) => Math.abs(x) < 1.6 && z > 3 && z < 12;
-  const avoid = (x, z) => inGreenhouse(x, z) || onPath(x, z);
+// density: fração das cópias (1 = todas; o modo leve usa menos para o Quest).
+export function buildGarden(scene, { density = 1 } = {}) {
+  const n = (count) => Math.max(1, Math.round(count * density));
+  // r = raio que a cópia ocupa no chão (ver scatterSpots).
+  const inGreenhouse = (x, z, r) => Math.abs(x) < 5 + r && Math.abs(z) < 5 + r;
+  const onPath = (x, z, r) => Math.abs(x) < 1.6 + r && z > 3 - r && z < 12 + r;
+  const avoid = (x, z, r = 0) => inGreenhouse(x, z, r) || onPath(x, z, r);
   const area = { minR: 6, maxR: 24, avoid };
 
   const jobs = [
+
     // Vasos com plantas na entrada.
     placeProp(scene, 'potted_plant_01', -1.6, 5.3, { height: 0.75 }),
     placeProp(scene, 'potted_plant_01', 1.6, 5.3, { height: 0.75, rotY: 1 }),
@@ -97,23 +152,21 @@ export function buildGarden(scene) {
   return Promise.all(jobs);
 }
 
-// Cerca em linha: repete o módulo ao longo de um segmento.
+// Cerca em linha: repete o módulo ao longo de um segmento (todas as peças num InstancedMesh).
 export async function buildFence(scene, name, { from, to, height = 1.2 }) {
   const base = await load(name);
-  const probe = base.clone(true);
-  const box = new THREE.Box3().setFromObject(probe);
-  const size = box.getSize(new THREE.Vector3());
-  const k = height / Math.max(size.y, 0.001);
-  const segLen = size.x * k;
+  const size = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3());
+  const segLen = size.x * (height / Math.max(size.y, 0.001));
   const dx = to.x - from.x;
   const dz = to.z - from.z;
-  const total = Math.hypot(dx, dz);
-  const n = Math.ceil(total / segLen);
+  const n = Math.ceil(Math.hypot(dx, dz) / segLen);
   // Rotação em Y que alinha o eixo X do módulo com o segmento from→to.
   const rotY = -Math.atan2(dz, dx);
+  const spots = [];
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n;
-    await placeProp(scene, name, from.x + dx * t, from.z + dz * t, { height, rotY, castShadow: true });
+    spots.push({ x: from.x + dx * t, z: from.z + dz * t, height, rotY });
   }
+  await instanceProp(scene, name, spots, { castShadow: true });
   return n;
 }

@@ -18,6 +18,7 @@ Sala de realidade virtual feita com **three.js** e **WebXR**, onde um sistema de
 | Botão de modo (caixa cinza) | Alterna entre **automático** e **manual**. |
 | Painel na parede | Mostra umidade, estado da bomba, modo, proximidade e últimos eventos. |
 | Painel das bancadas (perto da porta, à direita) | Escolha **Todas / Esquerda / Direita**, o modo **Automático / Manual**, **💧 Regar agora** (no manual) e **Liberar todos**. A grade mostra os 16 vasos (umidade e estado); **clique num vaso para bloquear ("não regar") ou liberar** a rega dele. Funciona com mouse, mira do modo FPS e raio do controle VR. |
+| Placa-mãe (fundo da estufa, na parede) | Caixa do ESP32 que recebe todos os fios: **preto** = sinal dos relés, **vermelho** = força das bombas (motores das bancadas e bomba da mesa), **amarelo** = sensores (umidade e proximidade). Os LEDs mostram energia, o programa rodando (pisca) e cada bomba ligada. O fio do sensor de umidade acompanha o sensor quando ele é pego. |
 | Vasos das bancadas | Podem ser **pegos e movidos** (PC: modo FPS · VR: gatilho lateral). Soltos, caem e pousam na bancada, na mesa ou no chão. A válvula só rega o vaso que está embaixo do bico dela: tirou o vaso do lugar, ela não rega mais ali. |
 | Vaso principal (mesa) | **Planta em análise**: preso à mesa com fitas zebradas e uma etiqueta — não pode ser pego. |
 | Irrigação das bancadas | Em cada bancada: motor com **caixa d'água** em cima, placa **ESP32 + relés** e um cano até cada vaso. Em cada curva, uma **válvula solenoide** com luz **vermelha** (fechada) e **verde** (regando) e um **bipe** ao abrir. Cada vaso tem seu sensor: abre abaixo de 35% e fecha em 70%. Uma placa perto da bancada esquerda explica válvula → relé → placa. |
@@ -104,8 +105,12 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 |---|---|---|
 | Planta glTF (Poly Haven comprimida, ~8 mil tri) | sim | sim |
 | Bomba glTF (150 mil tri) | sim | não — forma simples |
-| Triângulos na cena | ~180 mil (bomba 150 mil + planta 8 mil + cena) | ~30 mil |
-| Draw calls | ~85 | 65 (medido) |
+| Árvores (InstancedMesh, 2 draw calls) | 70 | 40 |
+| Jardim: flores, arbustos, grama (InstancedMesh, 1 draw call por tipo) | todas as cópias | metade das cópias |
+| Cerca em volta do jardim (InstancedMesh) | sim | sim |
+| Plantas reais nas bancadas (16 vasos pegáveis) | sim | sim |
+| Nuvens, poeira e pós-processamento | sim | não |
+| Draw calls (vista de dentro da estufa, medido com `?debug`) | ~75 | ~52 |
 | Sombra (1 luz só) | 2048 px | 1024 px |
 | `setPixelRatio` | até 1,5 | 1 |
 | Renderização foveada | `setFoveation(1)` | `setFoveation(1)` |
@@ -113,6 +118,8 @@ O Quest roda o navegador numa GPU de celular. Por isso a sala detecta o headset 
 A planta da mesa usava o `planta.glb` (6,3 MB, ~176 mil triângulos, com um vaso próprio que flutuava sobre o vaso da mesa).
 Ela foi trocada pela mesma "Potted Plant 01" da Poly Haven na versão comprimida (`polyhaven/potted_plant_01.glb`: 605 KB, ~8 mil triângulos, só caule e folhas), que agora aparece também no headset.
 Só a bomba (150 mil triângulos) continua pesada demais para o Quest: para usá-la lá, simplificar no Blender (*Decimate* para ~10 mil e texturas de no máximo 1024 px).
+
+O jardim tinha ~180 objetos clonados, cada um com a própria draw call. Agora cada tipo de planta e a cerca são desenhados com um `InstancedMesh`, então o modo leve mostra o mesmo cenário (árvores, cerca, jardim e plantas nas bancadas), só com menos cópias.
 
 Forçar a qualidade pela URL: `?qualidade=baixa` ou `?qualidade=alta`.
 
@@ -154,6 +161,7 @@ js/valves.js          -> lógica das válvulas solenoides das bancadas (um senso
 js/scene/bench-irrigation.js -> motores, caixas d'água, canos, válvulas com LEDs, gotas, bipe e placa explicativa
 js/ui/control-panel.js -> painel das bancadas: seleção, modo, regar agora, bloquear vaso
 js/scene/analysis.js  -> fitas e etiqueta do vaso principal (planta em análise)
+js/scene/mainboard.js -> placa-mãe no fundo da estufa e os fios até relés, bombas e sensores
 js/ui/options.js      -> opção "andar ao clicar" (PC)
 js/interaction.js     -> controles VR: pegar objetos, teletransporte, giro, vibração
 js/environment.js     -> renderer, HDRI, materiais PBR, construção da estufa
@@ -194,7 +202,7 @@ bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
 | Arquivo | Origem | Autor | Licença |
 |---|---|---|---|
 | `assets/models/bomba.glb` | [Water Pump — Sketchfab](https://sketchfab.com/3d-models/water-pump-76ca12fd7aec4748b96445892b1a5d95) | [OOtis_Pro](https://sketchfab.com/Mohit.Lodhi) | [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/) (exige crédito) |
-| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores, cerca) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/ursinia/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay, modular_chainlink_fence | Poly Haven | CC0 (uso livre) |
+| `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores, cerca) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay, modular_chainlink_fence | Poly Haven | CC0 (uso livre) |
 | `assets/textures/casca/*` | [bark_brown_02](https://polyhaven.com/a/bark_brown_02) | Poly Haven | CC0 |
 | `assets/textures/pedras/*` | [cobblestone_floor_02](https://polyhaven.com/a/cobblestone_floor_02) | Poly Haven | CC0 |
 | `assets/textures/grama/normal.jpg` | [grass_ground](https://polyhaven.com/a/grass_ground) (só o relevo; a cor é gerada por código) | Poly Haven | CC0 |

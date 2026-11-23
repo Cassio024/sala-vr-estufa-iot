@@ -101,7 +101,7 @@ export function grassMap(repeat = [20, 20]) {
 // Árvores e arbustos 3D em volta da estufa (InstancedMesh para ficar leve).
 // Copa irregular: esfera com ruído, para parecer folhagem e não um cubo facetado.
 function crownGeometry() {
-  const g = new THREE.IcosahedronGeometry(1, 3);
+  const g = new THREE.IcosahedronGeometry(1, 2);
   const v = new THREE.Vector3();
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) {

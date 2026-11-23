@@ -217,6 +217,7 @@ export class FirstPersonMode {
     const candidates = [
       ...(this.uiTargets || []).map((o) => [o, 'painel']),
       ...(this.lockedTargets || []).map((o) => [o, 'preso']),
+      ...(this.infoTargets || []).map((o) => [o, 'info']), // só mostra uma dica (userData.fpsTip)
       ...this.modeTargets.map((o) => [o, 'modo']),
       ...this.waterTargets.map((o) => [o, 'rega']),
       ...(this.held ? [] : this.grabbables.map((o) => [o, 'pegar'])),
@@ -243,7 +244,7 @@ export class FirstPersonMode {
     if (this.onIntroRay(this._aim())) return;
     const t = this._target();
     if (!t) return;
-    if (t.kind === 'painel' || t.kind === 'preso') return; // painel: tratado em onIntroRay
+    if (t.kind === 'painel' || t.kind === 'preso' || t.kind === 'info') return; // painel: tratado em onIntroRay
     if (t.kind === 'modo') this.onToggleMode();
     else if (t.kind === 'rega') this.onWater();
     else if (t.kind === 'pegar') this._grab(t.object);
@@ -350,7 +351,7 @@ export class FirstPersonMode {
         painel: 'Clique: usar o painel',
         preso: 'Planta em análise: presa à mesa com fitas',
       };
-      let tip = kind ? tips[kind] : '';
+      let tip = kind === 'info' ? t.object.userData.fpsTip || '' : kind ? tips[kind] : '';
       if (this.held) tip = this.held === this.can ? 'Botão direito no vaso: regar · Clique: soltar' : 'Clique: soltar (mire no vaso para espetar)';
       this.cross.classList.toggle('alvo', Boolean(kind));
       this.tip.textContent = tip;

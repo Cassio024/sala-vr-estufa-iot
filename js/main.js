@@ -39,6 +39,7 @@ import { createBenchIrrigation } from './scene/bench-irrigation.js';
 import { ControlPanel } from './ui/control-panel.js';
 import { buildAnalysisStraps } from './scene/analysis.js';
 import { SOIL_Y } from './scene/plant.js';
+import { createMainboard } from './scene/mainboard.js';
 
 // ---------------------------------------------------------------------------
 // Renderer, cena e "rig" (o rig permite teletransportar o jogador na VR)
@@ -168,14 +169,11 @@ buildContactShadows(scene, [
 const clouds = quality.low ? null : buildClouds(scene);
 const dust = quality.low ? null : buildDust(scene);
 
-// Jardim, árvores reais e plantas nas bancadas: só no PC (no modo leve ficam de fora).
-if (!quality.low) {
-  buildGarden(scene).catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
-  // Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
-  buildGreenhousePlants(scene, room.benchSpots)
-    .then((objs) => benchIrrigation.setPotObjects(objs))
-    .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
-}
+// Jardim (flores, arbustos, cerca) e plantas nas bancadas: nos dois modos.
+// O jardim é desenhado com InstancedMesh (uma draw call por tipo de planta); no modo
+// leve (Quest) vão metade das cópias.
+buildGarden(scene, { density: quality.low ? 0.5 : 1 })
+  .catch((err) => console.error('[jardim] falha ao carregar modelos:', err));
 
 // Pós-processamento (brilho e vinheta): só no PC.
 const post = quality.low ? null : createPost(renderer, scene, camera);
@@ -195,7 +193,11 @@ const clickSfx = sound.create(dev.modeButton, sound.buffers.click, { volume: 0.8
 // Irrigação das bancadas laterais: uma válvula solenoide (com relé) por vaso.
 // Objetos que dá para pegar (PC: modo FPS; VR: gatilho lateral). Os vasos das bancadas entram aqui.
 const grabbables = [dev.can, dev.probe];
-const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, low: quality.low, grabbables });
+const benchIrrigation = createBenchIrrigation(scene, room.benchSpots, { sound, grabbables });
+// Os vasos das bancadas viram objetos pegáveis quando os modelos terminam de carregar.
+buildGreenhousePlants(scene, room.benchSpots)
+  .then((objs) => benchIrrigation.setPotObjects(objs))
+  .catch((err) => console.error('[estufa] falha ao carregar plantas:', err));
 
 // Painel de controle das bancadas: perto da porta, à direita, virado para o corredor.
 const controlPanel = new ControlPanel(scene, benchIrrigation.network, benchIrrigation.slots, {
@@ -205,6 +207,17 @@ const controlPanel = new ControlPanel(scene, benchIrrigation.network, benchIrrig
   onClick: () => sound.playOnce(panelClick),
 });
 const panelClick = sound.create(controlPanel.group, sound.buffers.click, { volume: 0.8 });
+
+// Placa-mãe no fundo da estufa: recebe os fios dos relés, das bombas e dos sensores.
+const mainboard = createMainboard(scene, {
+  wallZ: -GREENHOUSE_SIZE / 2,
+  benches: benchIrrigation.wiring,
+  pump: new THREE.Vector3(dev.pump.position.x, TABLE_Y + 0.03, dev.pump.position.z - 0.07),
+  proximity: dev.proxCore.position,
+  probe: dev.probe,
+  probeTop: dev.probe.userData.baseOffset,
+  table: { y: TABLE_Y, z: TABLE_Z - 0.35 },
+});
 
 // Clique/gatilho em "interfaces": painel das bancadas, depois placas e porta da entrada.
 function uiRay(ray, opts) {
@@ -306,6 +319,7 @@ fps = new FirstPersonMode({
   onIntroRay: (ray) => uiRay(ray, { canWalk: false }),
   uiTargets: controlPanel.targets,
   lockedTargets: [plant.pot, ...analysisTargets],
+  infoTargets: [mainboard.group],
   onDrop: snapProbeToPot,
   modeTargets: [dev.modeButton, dev.modeLed],
   waterTargets: [dev.proxCore, dev.proxHalo],
@@ -413,6 +427,7 @@ function render() {
   const moisture = soilSensor.read();
   plant.update(moisture);
   dev.updateLeds({ probeIn, moisture, lowThreshold: irrigation.lowThreshold, pumping, mode: irrigation.mode, near });
+  mainboard.update(dt, { benchMotors: benchIrrigation.network.motors, pumping });
 
   // 6) Água e som.
   emitters.length = 0;
