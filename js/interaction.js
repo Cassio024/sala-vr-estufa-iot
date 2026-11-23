@@ -30,7 +30,8 @@ const MOVE_SPEED = 1.6; // m/s com o analógico todo inclinado
 const DEADZONE = 0.15;
 
 export class XRInteraction {
-  constructor({ renderer, scene, camera, rig, grabbables, surfaceHeight, onSelect, bounds = 3.6, collider = null }) {
+  constructor({ renderer, scene, camera, rig, grabbables, surfaceHeight, onSelect, bounds = 3.6, collider = null, onRelease = null }) {
+    this.onRelease = onRelease;
     this.scene = scene;
     this.camera = camera;
     this.rig = rig;
@@ -110,6 +111,7 @@ export class XRInteraction {
     o.userData.falling = true;
     o.userData.vy = 0;
     c.userData.held = null;
+    if (this.onRelease) this.onRelease(o); // ex.: encaixar o sensor no vaso se soltou perto dele
     haptic(c, 0.2, 30);
   }
 
@@ -121,7 +123,9 @@ export class XRInteraction {
       u.vy -= 9.8 * dt;
       o.position.y += u.vy * dt;
       const bottom = o.position.y - u.baseOffset;
-      const s = this.surfaceHeight(o.position.x, o.position.z, bottom - u.vy * dt);
+      // Altura de onde a base veio + o quanto ela pode entrar na terra: assim o sensor
+      // continua "sobre o solo" enquanto afunda os 8 cm e não atravessa o vaso até a mesa.
+      const s = this.surfaceHeight(o.position.x, o.position.z, bottom - u.vy * dt + (u.insertDepth || 0));
       const restBottom = s.y - (s.soil ? u.insertDepth || 0 : 0);
       if (bottom <= restBottom) {
         o.position.y = restBottom + u.baseOffset;

@@ -219,6 +219,17 @@ function onSelect(controller) {
   }
 }
 
+// Sensor solto PERTO do vaso (até 20 cm do centro, acima da terra): encaixa no meio da terra,
+// para não precisar acertar o centro exato com a mão (VR) ou com a mira (PC).
+function snapProbeToPot(obj) {
+  if (obj !== dev.probe) return;
+  const p = obj.position;
+  if (Math.hypot(p.x, p.z - TABLE_Z) < 0.2 && p.y > SOIL_Y - 0.05) {
+    p.x = 0.05;
+    p.z = TABLE_Z + 0.05;
+  }
+}
+
 // Mundo para colisão (modo FPS no PC e andar com joystick na VR):
 // paredes de vidro (só passa pela porta) e móveis que bloqueiam a passagem.
 const WORLD = {
@@ -239,6 +250,7 @@ const interaction = new XRInteraction({
   surfaceHeight,
   onSelect,
   collider: createCollider(WORLD), // analógico esquerdo anda sem atravessar paredes e móveis
+  onRelease: snapProbeToPot,
 });
 
 // Opção "andar ao clicar no chão" (PC). Começa desligada; o botão/tecla C liga.
