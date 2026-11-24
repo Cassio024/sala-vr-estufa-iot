@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { buildGrass3D } from './grama3d.js';
+import { addWind } from './vento.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ---------------------------------------------------------------------------
@@ -13,9 +15,23 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map();
 const BASE = 'assets/models/polyhaven/';
 
+// Árvores: folhas balançam mais; tronco e galhos só um pouco.
+function prepareModel(name, root) {
+  if (!name.includes('tree')) return root;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      const isLeaf = /leaf|leaves|folha/i.test(m.name || '') || m.alphaTest > 0 || m.transparent;
+      addWind(m, isLeaf ? { amp: 0.012, speed: 1.4 } : { amp: 0.003, speed: 1.1 });
+    }
+  });
+  return root;
+}
+
 function load(name) {
   if (!cache.has(name)) {
-    cache.set(name, loader.loadAsync(`${BASE}${name}.glb`).then((g) => g.scene));
+    cache.set(name, loader.loadAsync(`${BASE}${name}.glb`).then((g) => prepareModel(name, g.scene)));
   }
   return cache.get(name);
 }
@@ -141,10 +157,14 @@ export function buildGarden(scene, { density = 1 } = {}) {
 
   const jobs = [
 
+    // Árvores reais (Poly Haven, sem simplificar a malha para não quebrar a forma).
+    scatterProp(scene, 'island_tree_02', n(12), { minR: 10, maxR: 32, avoid, height: 8, castShadow: true }),
     // Vasos com plantas na entrada.
     placeProp(scene, 'potted_plant_01', -1.6, 5.3, { height: 0.75 }),
     placeProp(scene, 'potted_plant_01', 1.6, 5.3, { height: 0.75, rotY: 1 }),
     // (A cerca em volta do mapa é feita em scene/fence.js.)
   ];
+  // Grama 3D densa: lâminas espalhadas pelo chão (um draw call).
+  buildGrass3D(scene, avoid);
   return Promise.all(jobs);
 }

@@ -1,6 +1,6 @@
 // Estufa, bancadas, luminária, mesa e cenário externo (árvores e posições usadas pelo resto da cena).
 import * as THREE from 'three';
-import { pbrMaterial, buildGreenhouse, buildBenches, buildLamp, buildOutdoorScenery } from '../environment.js';
+import { pbrMaterial, buildGreenhouse, buildBenches, buildLamp } from '../environment.js';
 
 export const GREENHOUSE_SIZE = 8;
 export const TABLE_Y = 0.78; // altura da superfície da mesa
@@ -28,6 +28,7 @@ export function buildRoom(scene, { shadowMapSize, low = false }) {
     scene.add(leg);
   }
 
-  const outdoor = buildOutdoorScenery(scene, low ? { count: 40 } : {});
+  // As árvores redondas (procedurais) saíram: no lugar delas ficam as árvores 3D reais (props.js).
+  const outdoor = null;
   return { greenhouse, benchSpots, outdoor, tableTop };
 }
