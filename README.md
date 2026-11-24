@@ -221,6 +221,7 @@ bomba/configuração de volta. Para rodar a simulação localmente, abra a pasta
 |---|---|---|---|
 | `assets/models/bomba.glb` | [Water Pump — Sketchfab](https://sketchfab.com/3d-models/water-pump-76ca12fd7aec4748b96445892b1a5d95) | [OOtis_Pro](https://sketchfab.com/Mohit.Lodhi) | [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/) (exige crédito) |
 | `assets/models/polyhaven/*.glb` (flores, arbustos, samambaias, grama, vasos, árvores) | [Poly Haven](https://polyhaven.com) — island_tree_02/03, pine_tree_01, fir_sapling_medium, shrub_01, shrub_03, shrub_04, flower_gazania/heliophila, periwinkle_plant, dandelion_01, celandine_01, fern_02, moss_01, calathea_orbifolia_01, grass_medium_01/02, potted_plant_01, planter_pot_clay | Poly Haven | CC0 (uso livre) |
+| `assets/models/polyhaven/island_tree_02.glb`, `planter_box_01.glb`, `potted_plant_04.glb`, `garden_hose_wall_mounted_01.glb` | [Poly Haven](https://polyhaven.com) (árvore real e objetos da estufa) | Poly Haven | CC0 |
 | `assets/textures/casca/*` | [bark_brown_02](https://polyhaven.com/a/bark_brown_02) | Poly Haven | CC0 |
 | `assets/textures/pedras/*` | [cobblestone_floor_02](https://polyhaven.com/a/cobblestone_floor_02) | Poly Haven | CC0 |
 | `assets/textures/grama/normal.jpg` | [grass_ground](https://polyhaven.com/a/grass_ground) (só o relevo; a cor é gerada por código) | Poly Haven | CC0 |

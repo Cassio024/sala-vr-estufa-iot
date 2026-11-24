@@ -31,6 +31,8 @@ import { setupDesktopInput } from './input.js';
 import { Intro } from './intro.js';
 import { buildGarden, buildGreenhousePlants } from './props.js';
 import { buildContactShadows, buildClouds, buildDust } from './effects.js';
+import { wind, buildFlyingLeaves } from './vento.js';
+import { buildGrowLights, buildGreenhouseProps } from './estufa-extra.js';
 import { createPost } from './postfx.js';
 import { FirstPersonMode } from './fps.js';
 import { createCollider } from './collision.js';
@@ -169,6 +171,10 @@ buildContactShadows(scene, [
 ]);
 const clouds = quality.low ? null : buildClouds(scene);
 const dust = quality.low ? null : buildDust(scene);
+// Estufa: luminárias de cultivo acesas e objetos 3D reais nos cantos.
+buildGrowLights(scene);
+buildGreenhouseProps(scene).catch((err) => console.error('[estufa] falha nos objetos:', err));
+const flyingLeaves = quality.low ? null : buildFlyingLeaves(scene); // folhas voando com o vento
 
 // Jardim (flores, arbustos, cerca) e plantas nas bancadas: nos dois modos.
 // O jardim é desenhado com InstancedMesh (uma draw call por tipo de planta); no modo
@@ -396,6 +402,8 @@ const emitters = [];
 function render() {
   const dt = Math.min(clock.getDelta(), 0.1);
   time += dt;
+  wind.time.value = time; // relógio do vento (folhas e grama)
+  if (flyingLeaves) flyingLeaves.update(dt, time);
 
   // 0) Cenário vivo: caminhada, porta, vento, nuvens e poeira.
   intro.update(dt);
